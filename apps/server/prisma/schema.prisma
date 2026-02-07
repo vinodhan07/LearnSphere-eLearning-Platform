@@ -98,6 +98,10 @@ model Lesson {
   pointsReward Int     @default(10)
   passScore    Int     @default(80) // Percentage
   
+  // Content Options
+  allowDownload Boolean @default(true)
+  attachments   String? // JSON array of attachment objects
+  
   courseId    String
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   

@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { mockReporting } from "@/data/mockData";
-import Navbar from "@/components/layout/Navbar";
 import { motion } from "framer-motion";
 import {
   Sheet,
@@ -68,8 +67,7 @@ const AdminReporting = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+    <div className="bg-background">
       <div className="container py-8">
         <h1 className="font-heading text-3xl font-bold text-foreground mb-2">Reporting Dashboard</h1>
         <p className="text-muted-foreground mb-8">Track learner progress across all courses</p>

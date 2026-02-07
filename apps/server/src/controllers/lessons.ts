@@ -10,6 +10,8 @@ const lessonSchema = z.object({
     duration: z.number().int().nonnegative().default(0),
     type: z.enum(['video', 'document', 'image', 'quiz']).default('video'),
     order: z.number().int().default(0),
+    allowDownload: z.boolean().optional().default(true),
+    attachments: z.string().optional().nullable(),
 });
 
 /**

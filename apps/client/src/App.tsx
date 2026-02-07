@@ -20,6 +20,9 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import Profile from "./pages/Profile";
 
+import AdminLayout from "./components/layout/AdminLayout";
+import QuizPlayer from "@/components/admin/QuizPlayer";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -32,8 +35,8 @@ const App = () => (
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Index />} />
-            <Route path="/courses" element={<CourseCatalog />} />
-            <Route path="/course/:id" element={<CourseDetail />} />
+            <Route path="/explore" element={<CourseCatalog />} />
+            <Route path="/learn/:id" element={<CourseDetail />} />
 
             {/* Auth routes (guest only) */}
             <Route path="/login" element={
@@ -64,22 +67,18 @@ const App = () => (
               </ProtectedRoute>
             } />
 
-            {/* Admin routes */}
-            <Route path="/admin" element={
+            {/* Admin/Instructor routes wrapped in AdminLayout */}
+            <Route element={
               <ProtectedRoute minRole="INSTRUCTOR">
-                <AdminDashboard />
+                <AdminLayout />
               </ProtectedRoute>
-            } />
-            <Route path="/admin/course/:id" element={
-              <ProtectedRoute minRole="INSTRUCTOR">
-                <CourseEditor />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/reporting" element={
-              <ProtectedRoute minRole="INSTRUCTOR">
-                <AdminReporting />
-              </ProtectedRoute>
-            } />
+            }>
+              <Route path="/courses" element={<AdminDashboard />} />
+              <Route path="/courses/:id" element={<CourseEditor />} />
+              <Route path="/quiz/:courseId" element={<QuizPlayer />} />
+              <Route path="/reports" element={<AdminReporting />} />
+              <Route path="/admin" element={<AdminDashboard />} />
+            </Route>
 
             {/* 404 */}
             <Route path="*" element={<NotFound />} />

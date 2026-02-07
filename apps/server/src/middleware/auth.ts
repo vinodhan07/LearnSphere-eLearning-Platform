@@ -51,3 +51,22 @@ export function optionalAuthenticate(req: Request, res: Response, next: NextFunc
 
     next();
 }
+
+/**
+ * Middleware to require one of specific roles
+ */
+export function requireAnyRole(...roles: string[]) {
+    return (req: Request, res: Response, next: NextFunction): void => {
+        if (!req.user) {
+            res.status(401).json({ error: 'Not authenticated' });
+            return;
+        }
+
+        if (!roles.includes(req.user.role)) {
+            res.status(403).json({ error: 'Not authorized - insufficient role' });
+            return;
+        }
+
+        next();
+    };
+}

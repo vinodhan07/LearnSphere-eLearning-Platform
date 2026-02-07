@@ -69,6 +69,39 @@ export class QuizService {
             nextBadgeProgress: 75,
         };
     }
+
+    async createQuestion(lessonId: string, data: any) {
+        const { question, options, correctIndex } = data;
+
+        return await prisma.quizQuestion.create({
+            data: {
+                question,
+                options: JSON.stringify(options),
+                correctIndex,
+                lessonId,
+            }
+        });
+    }
+
+    async updateQuestion(id: string, data: any) {
+        const { question, options, correctIndex } = data;
+        const updateData: any = {};
+
+        if (question !== undefined) updateData.question = question;
+        if (options !== undefined) updateData.options = JSON.stringify(options);
+        if (correctIndex !== undefined) updateData.correctIndex = correctIndex;
+
+        return await prisma.quizQuestion.update({
+            where: { id },
+            data: updateData,
+        });
+    }
+
+    async deleteQuestion(id: string) {
+        await prisma.quizQuestion.delete({
+            where: { id },
+        });
+    }
 }
 
 export const quizService = new QuizService();

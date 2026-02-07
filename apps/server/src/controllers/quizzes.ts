@@ -77,3 +77,61 @@ export async function getProgressByCourse(req: Request, res: Response): Promise<
         res.status(500).json({ error: 'Internal server error' });
     }
 }
+
+const questionSchema = z.object({
+    question: z.string().min(1, 'Question is required'),
+    options: z.array(z.string()).min(2, 'At least 2 options are required'),
+    correctIndex: z.number().int().min(0),
+});
+
+/**
+ * POST /api/quizzes/lessons/:lessonId/questions
+ */
+export async function createQuestion(req: Request, res: Response): Promise<void> {
+    try {
+        const { lessonId } = req.params as any;
+        const validation = questionSchema.safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({ error: 'Validation failed', details: validation.error.flatten().fieldErrors });
+            return;
+        }
+        const question = await quizService.createQuestion(lessonId, validation.data);
+        res.status(201).json(question);
+    } catch (error) {
+        console.error('Create question error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+/**
+ * PUT /api/quizzes/questions/:id
+ */
+export async function updateQuestion(req: Request, res: Response): Promise<void> {
+    try {
+        const { id } = req.params as any;
+        const validation = questionSchema.partial().safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({ error: 'Validation failed', details: validation.error.flatten().fieldErrors });
+            return;
+        }
+        const question = await quizService.updateQuestion(id, validation.data);
+        res.json(question);
+    } catch (error) {
+        console.error('Update question error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+/**
+ * DELETE /api/quizzes/questions/:id
+ */
+export async function deleteQuestion(req: Request, res: Response): Promise<void> {
+    try {
+        const { id } = req.params as any;
+        await quizService.deleteQuestion(id);
+        res.json({ message: 'Question deleted successfully' });
+    } catch (error) {
+        console.error('Delete question error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}

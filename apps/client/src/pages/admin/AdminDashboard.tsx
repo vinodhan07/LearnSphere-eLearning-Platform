@@ -22,7 +22,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import Navbar from "@/components/layout/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Course } from "@/data/mockData";
 import {
@@ -99,7 +98,7 @@ const AdminDashboard = () => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem className="gap-2" onClick={() => navigate(`/admin/course/${course.id}`)}>
+        <DropdownMenuItem className="gap-2" onClick={() => navigate(`/courses/${course.id}`)}>
           <Pencil className="h-3.5 w-3.5" /> Edit
         </DropdownMenuItem>
         <DropdownMenuItem className="gap-2" onClick={() => handleShare(course)}>
@@ -121,8 +120,7 @@ const AdminDashboard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-orange-500/30">
-      <Navbar />
+    <div className="bg-background text-foreground selection:bg-orange-500/30">
 
       <main className="container max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
         {/* Header */}
