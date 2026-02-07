@@ -116,7 +116,7 @@ const LessonEditorModal = ({ isOpen, onClose, courseId, lesson, onSave }: Lesson
             setIsSaving(true);
             const dataToSave = {
                 ...formData,
-                duration: typeof formData.duration === 'string' ? (parseFloat(formData.duration) || 0) : formData.duration,
+                duration: typeof formData.duration === 'string' ? (Number(formData.duration) || 0) : formData.duration,
                 attachments: JSON.stringify(attachments)
             };
 
@@ -198,18 +198,13 @@ const LessonEditorModal = ({ isOpen, onClose, courseId, lesson, onSave }: Lesson
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-foreground/80">Video Duration (min)</label>
                                     <Input
-                                        type="text"
-                                        inputMode="decimal"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
                                         value={formData.duration}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            // Allow empty string, digits, and a single decimal point
-                                            if (val === "" || /^\d*\.?\d*$/.test(val)) {
-                                                setFormData({ ...formData, duration: val });
-                                            }
-                                        }}
+                                        onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
                                         className="h-10"
-                                        placeholder="0.0"
+                                        placeholder="0.00"
                                     />
                                 </div>
                             )}
