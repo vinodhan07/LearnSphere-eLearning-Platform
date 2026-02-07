@@ -44,6 +44,7 @@ import AttendeeModal from "@/components/admin/AttendeeModal";
 import ContactAttendeeModal from "@/components/admin/ContactAttendeeModal";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/lib/supabase";
 
 interface QuizQuestion {
     id: string;
@@ -122,35 +123,90 @@ const CourseEditor = () => {
     const [tagInput, setTagInput] = useState("");
 
     useEffect(() => {
-        fetchInitialData();
-    }, [id]);
+        if (!id) return;
 
-    const fetchInitialData = async () => {
-        try {
+        const fetchData = async () => {
             setIsLoading(true);
-            const [courseData, lessonData, adminData] = await Promise.all([
-                api.get<Course>(`/courses/${id}`),
-                api.get<Lesson[]>(`/lessons/course/${id}`),
-                api.get<Admin[]>(`/auth/admins`)
-            ]);
-            setCourse(courseData);
-            setLessons(lessonData);
-            setAdmins(adminData);
-        } catch (error) {
-            toast({
-                title: "Error",
-                description: "Failed to load course data",
-                variant: "destructive",
-            });
-        } finally {
+
+            // 1. Fetch Course
+            const { data: courseData, error: courseError } = await supabase
+                .from('Course')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle();
+
+            if (courseError || !courseData) {
+                toast({ title: "Error", description: "Course not found", variant: "destructive" });
+                navigate('/admin');
+                return;
+            }
+            setCourse(courseData as any);
+
+            // 2. Fetch Lessons
+            const { data: lessonsData } = await supabase
+                .from('Lesson')
+                .select('*')
+                .eq('courseId', id)
+                .order('order', { ascending: true });
+
+            if (lessonsData) setLessons(lessonsData as any);
+
+            // 3. Fetch Admins
+            try {
+                const adminData = await api.get<Admin[]>(`/auth/admins`);
+                setAdmins(adminData);
+            } catch (error) {
+                console.error("Failed to fetch admins", error);
+            }
+
             setIsLoading(false);
-        }
-    };
+        };
+
+        fetchData();
+
+        // Real-time for Lessons
+        const lessonChannel = supabase
+            .channel(`course-lessons-${id}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'Lesson',
+                filter: `courseId=eq.${id}`
+            }, () => {
+                supabase.from('Lesson').select('*').eq('courseId', id).order('order', { ascending: true })
+                    .then(({ data }) => data && setLessons(data as any));
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(lessonChannel);
+        };
+    }, [id, navigate, toast]);
 
     const fetchQuestions = async (lessonId: string) => {
         try {
-            const questions = await api.get<any[]>(`/quizzes/${lessonId}/questions`);
-            setQuizQuestions(prev => ({ ...prev, [lessonId]: questions }));
+            const fetchOnce = async () => {
+                const { data } = await supabase
+                    .from('QuizQuestion')
+                    .select('*')
+                    .eq('lessonId', lessonId)
+                    .order('order', { ascending: true });
+                if (data) setQuizQuestions(prev => ({ ...prev, [lessonId]: data }));
+            };
+
+            fetchOnce();
+
+            const channel = supabase
+                .channel(`quiz-questions-${lessonId}`)
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'QuizQuestion',
+                    filter: `lessonId=eq.${lessonId}`
+                }, fetchOnce)
+                .subscribe();
+
+            return () => supabase.removeChannel(channel);
         } catch (error) {
             console.error("Failed to fetch questions:", error);
         }
@@ -170,7 +226,7 @@ const CourseEditor = () => {
     };
 
     const handleSave = async () => {
-        if (!course) return;
+        if (!course || !id) return;
 
         // Validation
         if (!course.title) {
@@ -189,9 +245,25 @@ const CourseEditor = () => {
 
         try {
             setIsSaving(true);
-            await api.put(`/courses/${id}`, course);
+            const { error } = await supabase
+                .from('Course')
+                .update({
+                    title: course.title,
+                    description: course.description,
+                    tags: course.tags,
+                    published: course.published,
+                    website: course.website,
+                    visibility: course.visibility,
+                    accessRule: course.accessRule,
+                    responsibleAdminId: course.responsibleAdminId,
+                    updatedAt: new Date().toISOString()
+                })
+                .eq('id', id);
+
+            if (error) throw error;
             toast({ title: "Success", description: "Course updated successfully" });
         } catch (error) {
+            console.error("Failed to update course", error);
             toast({ title: "Error", description: "Failed to update course", variant: "destructive" });
         } finally {
             setIsSaving(false);
@@ -217,8 +289,12 @@ const CourseEditor = () => {
         const lessonId = deleteModalConfig.itemId;
         try {
             setIsSaving(true);
-            await api.del(`/lessons/${lessonId}`);
-            setLessons(lessons.filter(l => l.id !== lessonId));
+            const { error } = await supabase
+                .from('Lesson')
+                .delete()
+                .eq('id', lessonId);
+
+            if (error) throw error;
             toast({ title: "Success", description: "Lesson deleted successfully" });
         } catch (error) {
             toast({ title: "Error", description: "Failed to delete lesson", variant: "destructive" });
@@ -245,19 +321,25 @@ const CourseEditor = () => {
 
     const handleAddQuestion = async (lessonId: string) => {
         try {
-            const newQuestion = {
-                question: "New Question",
-                options: ["Option 1", "Option 2"],
-                correctIndex: 0
-            };
-            const response = await api.post(`/quizzes/lessons/${lessonId}/questions`, newQuestion);
-            setQuizQuestions(prev => ({
-                ...prev,
-                [lessonId]: [...(prev[lessonId] || []), response]
-            }));
+            setIsSaving(true);
+            const newOrder = (quizQuestions[lessonId]?.length || 0);
+            const { error } = await supabase
+                .from('QuizQuestion')
+                .insert({
+                    lessonId: lessonId,
+                    question: "New Question",
+                    options: ["Option 1", "Option 2"],
+                    correctIndex: 0,
+                    order: newOrder,
+                });
+
+            if (error) throw error;
             toast({ title: "Success", description: "Question added" });
         } catch (error) {
+            console.error("Failed to add question:", error);
             toast({ title: "Error", description: "Failed to add question", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -270,11 +352,8 @@ const CourseEditor = () => {
 
         try {
             toast({ title: "AI Generation Started", description: "Generating questions from your lesson content..." });
+            // API endpoint will need to be updated to write to Firestore
             await api.post('/ai/generate-quiz', { lessonId: sourceLesson.id, quizId });
-
-            // Refresh questions
-            const updatedQuestions = await api.get<any[]>(`/quizzes/lessons/${quizId}/questions`);
-            setQuizQuestions({ ...quizQuestions, [quizId]: updatedQuestions });
 
             toast({ title: "Success", description: "AI generated 3 new questions based on your course content." });
             if (!expandedQuizzes.has(quizId)) {
@@ -287,11 +366,15 @@ const CourseEditor = () => {
 
     const handleUpdateQuestion = async (quizId: string, questionId: string, data: any) => {
         try {
-            await api.put(`/quizzes/questions/${questionId}`, data);
-            setQuizQuestions(prev => ({
-                ...prev,
-                [quizId]: prev[quizId].map(q => q.id === questionId ? { ...q, ...data } : q)
-            }));
+            const { error } = await supabase
+                .from('QuizQuestion')
+                .update({
+                    ...data,
+                    updatedAt: new Date().toISOString()
+                })
+                .eq('id', questionId);
+
+            if (error) throw error;
             toast({ title: "Updated", description: "Question saved" });
         } catch (error) {
             toast({ title: "Error", description: "Failed to update question", variant: "destructive" });
@@ -311,14 +394,14 @@ const CourseEditor = () => {
 
     const confirmDeleteQuestion = async () => {
         const questionId = deleteModalConfig.itemId;
-        const lessonId = deleteModalConfig.parentId!;
         try {
             setIsSaving(true);
-            await api.del(`/quizzes/questions/${questionId}`);
-            setQuizQuestions(prev => ({
-                ...prev,
-                [lessonId]: prev[lessonId].filter(q => q.id !== questionId)
-            }));
+            const { error } = await supabase
+                .from('QuizQuestion')
+                .delete()
+                .eq('id', questionId);
+
+            if (error) throw error;
             toast({ title: "Deleted", description: "Question removed successfully" });
         } catch (error) {
             toast({ title: "Error", description: "Failed to delete question", variant: "destructive" });

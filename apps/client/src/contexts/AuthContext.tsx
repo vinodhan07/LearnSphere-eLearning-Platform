@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, Role, LoginRequest, RegisterRequest } from '@/types/auth';
-import * as api from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
 interface AuthContextType {
     user: User | null;
@@ -28,40 +28,101 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    const fetchUserProfile = async (uid: string) => {
+        const { data, error } = await supabase
+            .from('User')
+            .select('*')
+            .eq('id', uid)
+            .maybeSingle();
+
+        if (error) {
+            console.error('Error fetching user profile:', error.message);
+            return null;
+        }
+        return data as User | null;
+    };
+
     // Check for existing session on mount
     useEffect(() => {
-        async function checkAuth() {
-            if (api.hasStoredToken()) {
-                try {
-                    const { user } = await api.getCurrentUser();
-                    setUser(user);
-                } catch (error) {
-                    // Token invalid, clear it
-                    api.clearTokens();
-                }
+        // Get initial session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                fetchUserProfile(session.user.id).then(profile => {
+                    setUser(profile);
+                    setIsLoading(false);
+                });
+            } else {
+                setUser(null);
+                setIsLoading(false);
+            }
+        });
+
+        // Listen for changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (session) {
+                const profile = await fetchUserProfile(session.user.id);
+                setUser(profile);
+            } else {
+                setUser(null);
             }
             setIsLoading(false);
-        }
-        checkAuth();
+        });
+
+        return () => subscription.unsubscribe();
     }, []);
 
     const login = useCallback(async (data: LoginRequest) => {
-        const response = await api.login(data);
-        setUser(response.user);
+        const { error } = await supabase.auth.signInWithPassword({
+            email: data.email,
+            password: data.password,
+        });
+
+        if (error) throw error;
+        // User state will be updated by onAuthStateChange listener
     }, []);
 
     const register = useCallback(async (data: RegisterRequest) => {
-        const response = await api.register(data);
-        setUser(response.user);
+        // 1. Sign up user via Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: data.email,
+            password: data.password,
+        });
+
+        if (authError || !authData.user) throw authError || new Error('Auth signup failed');
+
+        // 2. Create profile in matching User table
+        const profileData = {
+            id: authData.user.id,
+            email: data.email,
+            name: data.name,
+            role: data.role || 'LEARNER',
+            avatar: null,
+            totalPoints: 0,
+        };
+
+        const { error: profileError } = await supabase
+            .from('User')
+            .insert(profileData);
+
+        if (profileError) throw profileError;
+
+        setUser(profileData);
     }, []);
 
     const googleLogin = useCallback(async (credential: string) => {
-        const response = await api.googleLogin(credential);
-        setUser(response.user);
+        // This assumes the frontend is handling the Google OAuth flow 
+        // and calling this with the result. For Supabase, we typically use 
+        // signInWithOAuth. If using a specific credential (ID Token), we use:
+        const { error } = await supabase.auth.signInWithIdToken({
+            provider: 'google',
+            token: credential,
+        });
+
+        if (error) throw error;
     }, []);
 
     const logout = useCallback(async () => {
-        await api.logout();
+        await supabase.auth.signOut();
         setUser(null);
     }, []);
 

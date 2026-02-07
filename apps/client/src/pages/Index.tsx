@@ -7,6 +7,9 @@ import Navbar from "@/components/layout/Navbar";
 import { motion } from "framer-motion";
 import heroBg from "@/assets/hero-bg.jpg";
 import { useAuth } from "@/contexts/AuthContext";
+import { useState, useEffect } from "react";
+import { Course } from "@/data/mockData";
+import { supabase } from "@/lib/supabase";
 
 const stats = [
   { icon: BookOpen, value: "150+", label: "Courses" },
@@ -16,8 +19,24 @@ const stats = [
 ];
 
 const Index = () => {
-  const featuredCourses = mockCourses.filter((c) => c.status === "published").slice(0, 3);
+  const [featuredCourses, setFeaturedCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { hasMinimumRole } = useAuth();
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      const { data, error } = await supabase
+        .from('Course')
+        .select('*')
+        .eq('published', true)
+        .limit(3);
+
+      if (data) setFeaturedCourses(data as any);
+      setIsLoading(false);
+    };
+
+    fetchCourses();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -110,7 +129,9 @@ const Index = () => {
             </Link>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredCourses.map((course, i) => (
+            {isLoading ? (
+              <p className="text-center col-span-full text-muted-foreground py-10">Loading featured courses...</p>
+            ) : featuredCourses.map((course, i) => (
               <CourseCard key={course.id} course={course} index={i} />
             ))}
           </div>

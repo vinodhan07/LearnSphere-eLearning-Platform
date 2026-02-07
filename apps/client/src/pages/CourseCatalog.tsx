@@ -1,19 +1,36 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { mockCourses } from "@/data/mockData";
+import { Course } from "@/data/mockData";
 import CourseCard from "@/components/courses/CourseCard";
 import Navbar from "@/components/layout/Navbar";
+import { supabase } from "@/lib/supabase";
 
 const categories = ["All", "Development", "Design", "Data Science", "Mobile", "Cloud", "Security"];
 
 const CourseCatalog = () => {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const published = mockCourses.filter((c) => c.status === "published");
-  const filtered = published.filter((c) => {
+  useEffect(() => {
+    const fetchCourses = async () => {
+      const { data, error } = await supabase
+        .from('Course')
+        .select('*')
+        .eq('published', true)
+        .order('createdAt', { ascending: false });
+
+      if (data) setCourses(data as any);
+      setIsLoading(false);
+    };
+
+    fetchCourses();
+  }, []);
+
+  const filtered = courses.filter((c) => {
     const matchesSearch = c.title.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = activeCategory === "All" || c.category === activeCategory;
     return matchesSearch && matchesCategory;
@@ -45,11 +62,10 @@ const CourseCatalog = () => {
               <Badge
                 key={cat}
                 variant={activeCategory === cat ? "default" : "outline"}
-                className={`cursor-pointer transition-colors ${
-                  activeCategory === cat
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted"
-                }`}
+                className={`cursor-pointer transition-colors ${activeCategory === cat
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+                  }`}
                 onClick={() => setActiveCategory(cat)}
               >
                 {cat}
@@ -59,16 +75,24 @@ const CourseCatalog = () => {
         </div>
 
         {/* Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((course, i) => (
-            <CourseCard key={course.id} course={course} index={i} />
-          ))}
-        </div>
-
-        {filtered.length === 0 && (
-          <div className="text-center py-20 text-muted-foreground">
-            <p className="text-lg">No courses found matching your criteria.</p>
+        {isLoading ? (
+          <div className="text-center py-20">
+            <p className="text-lg text-muted-foreground">Loading courses...</p>
           </div>
+        ) : (
+          <>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filtered.map((course, i) => (
+                <CourseCard key={course.id} course={course} index={i} />
+              ))}
+            </div>
+
+            {filtered.length === 0 && (
+              <div className="text-center py-20 text-muted-foreground">
+                <p className="text-lg">No courses found matching your criteria.</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

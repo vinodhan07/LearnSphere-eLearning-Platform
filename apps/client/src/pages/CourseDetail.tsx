@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, BookOpen, Clock, Users, Star, Play, FileText, Image as ImageIcon, HelpCircle, CheckCircle2, Circle, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { mockCourses, mockLessons, mockReviews } from "@/data/mockData";
+import { Course, Lesson, Review } from "@/data/mockData";
 import Navbar from "@/components/layout/Navbar";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 const typeIcons: Record<string, React.ElementType> = {
   video: Play,
@@ -19,24 +20,120 @@ const typeIcons: Record<string, React.ElementType> = {
 const CourseDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
-  const course = mockCourses.find((c) => c.id === id);
-  const lessons = course ? mockLessons.filter((l) => l.courseId === course.id) : [];
-  const reviews = course ? mockReviews.filter((r) => r.courseId === course.id) : [];
-  const completedCount = lessons.filter((l) => l.completed).length;
+  const { user, isAuthenticated } = useAuth();
+
+  const [course, setCourse] = useState<Course | null>(null);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!id) return;
+      try {
+        const { data: courseData } = await supabase
+          .from('Course')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (courseData) {
+          setCourse(courseData as any);
+
+          const { data: lessonsData } = await supabase
+            .from('Lesson')
+            .select('*')
+            .eq('courseId', id)
+            .order('order', { ascending: true });
+
+          if (lessonsData) setLessons(lessonsData as any);
+
+          // Fetch reviews
+          const { data: reviewsData } = await supabase
+            .from('Review')
+            .select('*')
+            .eq('courseId', id);
+
+          if (reviewsData) setReviews(reviewsData as any);
+
+          // Check enrollment
+          if (user) {
+            const { data: enrollData } = await supabase
+              .from('Enrollment')
+              .select('*')
+              .eq('courseId', id)
+              .eq('userId', user.id)
+              .maybeSingle();
+
+            if (enrollData) {
+              setIsEnrolled(true);
+              setCourse(prev => prev ? { ...prev, progress: enrollData.progress || 0 } : null);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching course detail:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [id, user]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container py-20 text-center">
+          <p className="text-lg text-muted-foreground">Loading course details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!course) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container py-20 text-center">
+          <h2 className="text-2xl font-bold">Course Not Found</h2>
+          <Link to="/courses" className="text-primary hover:underline mt-4 block">Back to Catalog</Link>
+        </div>
+      </div>
+    );
+  }
+
+  const completedCount = lessons.filter((l) => l.completed).length; // This would need syncing with enrollment progress
   const avgRating = reviews.length
     ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
     : "0";
 
-  // Check if course is visible to guests
-  const isPublic = course?.visibility === "EVERYONE";
-
-  const handleStartLearning = () => {
-    if (isAuthenticated) {
-      navigate(`/lesson/${course.id}`);
-    } else {
-      navigate("/login", { state: { from: `/lesson/${course.id}` } });
+  const handleStartLearning = async () => {
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: `/course/${course.id}` } });
+      return;
     }
+
+    if (!isEnrolled) {
+      try {
+        const { error } = await supabase
+          .from('Enrollment')
+          .insert({
+            courseId: course.id,
+            userId: user!.id,
+            progress: 0,
+            enrolledAt: new Date().toISOString()
+          });
+
+        if (error) throw error;
+        setIsEnrolled(true);
+      } catch (error) {
+        console.error("Enrollment failed:", error);
+        return;
+      }
+    }
+    navigate(`/lesson/${course.id}`);
   };
 
   return (
@@ -56,7 +153,7 @@ const CourseDetail = () => {
         >
           <div className="lg:col-span-2 space-y-4">
             <div className="flex flex-wrap gap-2">
-              {course.tags.map((tag) => (
+              {course.tags?.map((tag) => (
                 <span key={tag} className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">{tag}</span>
               ))}
             </div>
@@ -72,9 +169,9 @@ const CourseDetail = () => {
               </span>
             </div>
             <div className="flex items-center gap-3 pt-2">
-              <img src={course.instructorAvatar} alt={course.instructor} className="h-10 w-10 rounded-full object-cover" />
+              <img src={course.instructorAvatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=instructor"} alt={course.instructor} className="h-10 w-10 rounded-full object-cover" />
               <div>
-                <p className="text-sm font-medium text-foreground">{course.instructor}</p>
+                <p className="text-sm font-medium text-foreground">{course.instructor || "Platform Instructor"}</p>
                 <p className="text-xs text-muted-foreground">Course Instructor</p>
               </div>
             </div>
@@ -83,17 +180,15 @@ const CourseDetail = () => {
           {/* Side card */}
           <div className="bg-card rounded-xl border border-border p-6 shadow-card space-y-5 h-fit">
             <img src={course.image} alt={course.title} className="w-full h-40 rounded-lg object-cover" />
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Progress</span>
-                <span className="font-semibold text-foreground">{course.progress}%</span>
+            {(isEnrolled || (course.progress && course.progress > 0)) && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Progress</span>
+                  <span className="font-semibold text-foreground">{course.progress || 0}%</span>
+                </div>
+                <Progress value={course.progress || 0} className="h-2.5" />
               </div>
-              <Progress value={course.progress} className="h-2.5" />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{completedCount} completed</span>
-                <span>{lessons.length - completedCount} remaining</span>
-              </div>
-            </div>
+            )}
             <Button
               onClick={handleStartLearning}
               className="w-full bg-gradient-hero text-primary-foreground font-bold text-base hover:opacity-90"
@@ -101,8 +196,8 @@ const CourseDetail = () => {
             >
               {!isAuthenticated && <LogIn className="h-4 w-4 mr-2" />}
               {isAuthenticated
-                ? (course.progress > 0 ? "Continue Learning" : "Start Course")
-                : "Sign in to Start"
+                ? (isEnrolled ? "Continue Learning" : "Enroll Now")
+                : "Sign in to Enroll"
               }
             </Button>
           </div>

@@ -12,8 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import * as api from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/lib/supabase";
 
 interface Question {
     id: string;
@@ -40,20 +40,41 @@ const QuizFlow = ({ lessonId, passScore, pointsReward, onComplete }: QuizFlowPro
     const [practiceQuestions, setPracticeQuestions] = useState<Question[]>([]);
 
     useEffect(() => {
-        fetchQuestions();
-    }, [lessonId]);
+        if (!lessonId) return;
 
-    const fetchQuestions = async () => {
-        try {
+        const fetchQuestions = async () => {
             setIsLoading(true);
-            const data = await api.get<Question[]>(`/quizzes/${lessonId}/questions`);
-            setQuestions(data);
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to load quiz questions", variant: "destructive" });
-        } finally {
+            const { data, error } = await supabase
+                .from('QuizQuestion')
+                .select('*')
+                .eq('quizId', lessonId)
+                .order('order', { ascending: true });
+
+            if (error) {
+                console.error("Failed to load quiz questions:", error);
+                toast({ title: "Error", description: "Failed to load quiz questions", variant: "destructive" });
+            } else if (data) {
+                const formatted = data.map(d => ({
+                    id: d.id,
+                    question: d.question,
+                    options: Array.isArray(d.options) ? d.options : (typeof d.options === 'string' ? JSON.parse(d.options) : []),
+                    correctIndex: d.correctIndex
+                } as Question));
+                setQuestions(formatted);
+            }
             setIsLoading(false);
-        }
-    };
+        };
+
+        fetchQuestions();
+
+        const channel = supabase.channel(`quiz-${lessonId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'QuizQuestion', filter: `quizId=eq.${lessonId}` }, fetchQuestions)
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [lessonId]);
 
     const startQuiz = () => {
         setAnswers([]);
@@ -78,7 +99,9 @@ const QuizFlow = ({ lessonId, passScore, pointsReward, onComplete }: QuizFlowPro
     const submitQuiz = async () => {
         try {
             setIsLoading(true);
-            const res = await api.post<any>(`/quizzes/${lessonId}/submit`, { answers });
+            // This still uses API as backend logic is needed for calculation/points
+            // We'll update this once backend is migrated
+            const res = await (await import("@/lib/api")).post<any>(`/quizzes/${lessonId}/submit`, { answers });
             setResult(res.attempt);
             setStep("result");
             if (res.attempt.passed) {
@@ -95,7 +118,7 @@ const QuizFlow = ({ lessonId, passScore, pointsReward, onComplete }: QuizFlowPro
 
     const fetchPracticeQuestions = async () => {
         try {
-            const data = await api.get<Question[]>(`/ai/smart-retake/${lessonId}`);
+            const data = await (await import("@/lib/api")).get<Question[]>(`/ai/smart-retake/${lessonId}`);
             setPracticeQuestions(data);
         } catch (error) {
             console.error("Failed to fetch practice questions");
@@ -159,8 +182,8 @@ const QuizFlow = ({ lessonId, passScore, pointsReward, onComplete }: QuizFlowPro
                                     key={idx}
                                     onClick={() => handleSelect(idx)}
                                     className={`w-full text-left p-4 rounded-xl border transition-all duration-200 flex items-center gap-4 ${answers[currentIndex] === idx
-                                            ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary"
-                                            : "border-border hover:border-primary/30 hover:bg-muted/50"
+                                        ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary"
+                                        : "border-border hover:border-primary/30 hover:bg-muted/50"
                                         }`}
                                 >
                                     <div className={`h-6 w-6 rounded-full border flex items-center justify-center text-xs font-bold ${answers[currentIndex] === idx ? "bg-primary border-primary text-white" : "border-muted-foreground/30 text-muted-foreground"

@@ -1,13 +1,15 @@
-import prisma from '../utils/prisma.js';
+import { supabase } from '../utils/supabase.js';
 
 export class ClaudeAgent {
     /**
      * Explains lesson content in simple terms
      */
     async explainLesson(lessonId: string) {
-        const lesson = await prisma.lesson.findUnique({
-            where: { id: lessonId },
-        });
+        const { data: lesson, error } = await supabase
+            .from('Lesson')
+            .select('*')
+            .eq('id', lessonId)
+            .maybeSingle();
 
         if (!lesson) throw new Error('Lesson not found');
 
@@ -22,9 +24,11 @@ export class ClaudeAgent {
      * Generates practice questions for a failed quiz
      */
     async generateSmartRetake(lessonId: string) {
-        const lesson = await prisma.lesson.findUnique({
-            where: { id: lessonId },
-        });
+        const { data: lesson } = await supabase
+            .from('Lesson')
+            .select('*')
+            .eq('id', lessonId)
+            .maybeSingle();
 
         if (!lesson) throw new Error('Lesson not found');
 
@@ -51,9 +55,11 @@ export class ClaudeAgent {
      * Generates quiz questions based on lesson content
      */
     async generateQuizQuestionsFromContent(lessonId: string) {
-        const lesson = await prisma.lesson.findUnique({
-            where: { id: lessonId },
-        });
+        const { data: lesson } = await supabase
+            .from('Lesson')
+            .select('*')
+            .eq('id', lessonId)
+            .maybeSingle();
 
         if (!lesson) throw new Error('Lesson not found');
 

@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { mockReporting } from "@/data/mockData";
 import { motion } from "framer-motion";
+import { supabase } from '@/lib/supabase';
+import { useEffect } from "react";
 import {
   Sheet,
   SheetContent,
@@ -35,20 +36,62 @@ const allColumns = [
 
 const AdminReporting = () => {
   const [search, setSearch] = useState("");
+  const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [courses, setCourses] = useState<Record<string, any>>({});
+  const [users, setUsers] = useState<Record<string, any>>({});
+  const [isLoading, setIsLoading] = useState(true);
   const [visibleCols, setVisibleCols] = useState<Set<string>>(
     new Set(allColumns.filter((c) => c.default).map((c) => c.key))
   );
 
-  const data = mockReporting.filter(
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+
+      // We can fetch all enrollments with courses and users joined
+      const { data, error } = await supabase
+        .from('Enrollment')
+        .select('*, course:Course(*), user:User(*)');
+
+      if (data) setEnrollments(data);
+      setIsLoading(false);
+    };
+
+    fetchData();
+
+    // Real-time
+    const channel = supabase.channel('admin-reporting')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Enrollment' }, fetchData)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const reportData = enrollments.map(e => {
+    return {
+      id: e.id,
+      courseName: e.course?.title || "Unknown Course",
+      participantName: e.user?.name || "Unknown User",
+      participantAvatar: e.user?.avatar || `https://ui-avatars.com/api/?name=${e.user?.name || 'U'}`,
+      enrolledDate: e.enrolledAt ? new Date(e.enrolledAt).toLocaleDateString() : "—",
+      startDate: e.startedAt ? new Date(e.startedAt).toLocaleDateString() : "—",
+      timeSpent: e.timeSpent || "0m",
+      completionPercentage: e.progress || 0,
+      status: e.status || "yet_to_start",
+      completedDate: e.completedAt ? new Date(e.completedAt).toLocaleDateString() : null
+    };
+  }).filter(
     (r) =>
       r.courseName.toLowerCase().includes(search.toLowerCase()) ||
       r.participantName.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalParticipants = mockReporting.length;
-  const yetToStart = mockReporting.filter((r) => r.status === "yet_to_start").length;
-  const inProgress = mockReporting.filter((r) => r.status === "in_progress").length;
-  const completed = mockReporting.filter((r) => r.status === "completed").length;
+  const totalParticipants = reportData.length;
+  const yetToStart = reportData.filter((r) => r.status === "yet_to_start").length;
+  const inProgress = reportData.filter((r) => r.status === "in_progress").length;
+  const completed = reportData.filter((r) => r.status === "completed").length;
 
   const toggleCol = (key: string) => {
     setVisibleCols((prev) => {
@@ -140,8 +183,8 @@ const AdminReporting = () => {
                 </tr>
               </thead>
               <tbody>
-                {data.map((row, i) => {
-                  const sb = statusBadge[row.status];
+                {reportData.map((row, i) => {
+                  const sb = statusBadge[row.status] || statusBadge.yet_to_start;
                   return (
                     <tr key={row.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
                       {visibleCols.has("sr") && <td className="py-3 px-4 text-sm text-muted-foreground">{i + 1}</td>}

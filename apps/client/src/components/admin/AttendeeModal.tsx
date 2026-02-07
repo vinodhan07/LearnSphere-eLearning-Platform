@@ -18,12 +18,12 @@ import {
     TableHeader,
     TableRow
 } from "@/components/ui/table";
-import { Mail, Search, UserPlus, CheckCircle, Clock } from "lucide-react";
+import { Mail, Search, UserPlus, CheckCircle, Clock, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import * as api from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 interface User {
-    id: string;
+    id?: string;
     name: string;
     email: string;
     avatar?: string;
@@ -58,31 +58,83 @@ const AttendeeModal = ({ isOpen, onClose, courseId }: AttendeeModalProps) => {
     const [isInviting, setIsInviting] = useState(false);
 
     useEffect(() => {
-        if (isOpen) {
-            fetchAttendees();
-        }
-    }, [isOpen, courseId]);
+        if (!isOpen || !courseId) return;
 
-    const fetchAttendees = async () => {
-        try {
+        const fetchData = async () => {
             setIsLoading(true);
-            const res = await api.get<{ enrollments: Enrollment[], invitations: Invitation[] }>(`/courses/${courseId}/attendees`);
-            setData(res);
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to load attendees", variant: "destructive" });
-        } finally {
+
+            // 1. Fetch Enrollments with User profile join
+            const { data: enrollData } = await supabase
+                .from('Enrollment')
+                .select('*, user:User(*)')
+                .eq('courseId', courseId);
+
+            if (enrollData) {
+                setData(prev => ({
+                    ...prev,
+                    enrollments: enrollData.map((e: any) => ({
+                        id: e.id,
+                        progress: e.progress || 0,
+                        user: {
+                            id: e.userId,
+                            name: e.user.name,
+                            email: e.user.email,
+                            avatar: e.user.avatar
+                        }
+                    }))
+                }));
+            }
+
+            // 2. Fetch Invitations
+            const { data: inviteData } = await supabase
+                .from('CourseInvitation')
+                .select('*')
+                .eq('courseId', courseId);
+
+            if (inviteData) {
+                setData(prev => ({
+                    ...prev,
+                    invitations: inviteData.map((i: any) => ({
+                        id: i.id,
+                        user: { email: i.email, name: i.email.split('@')[0] },
+                        status: i.status
+                    }))
+                }));
+            }
+
             setIsLoading(false);
-        }
-    };
+        };
+
+        fetchData();
+
+        // Real-time for both
+        const enrollChannel = supabase.channel(`attendees-${courseId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'Enrollment', filter: `courseId=eq.${courseId}` }, fetchData)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'CourseInvitation', filter: `courseId=eq.${courseId}` }, fetchData)
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(enrollChannel);
+        };
+    }, [isOpen, courseId]);
 
     const handleInvite = async () => {
         if (!email) return;
         try {
             setIsInviting(true);
-            await api.post(`/courses/${courseId}/invite`, { email });
+            const { error } = await supabase
+                .from('CourseInvitation')
+                .insert({
+                    courseId,
+                    email,
+                    status: 'PENDING',
+                    invitedBy: 'ADMIN', // Placeholder or use current user ID
+                    createdAt: new Date().toISOString()
+                });
+
+            if (error) throw error;
             toast({ title: "Success", description: `Invitation sent to ${email}` });
             setEmail("");
-            fetchAttendees();
         } catch (error: any) {
             toast({
                 title: "Error",

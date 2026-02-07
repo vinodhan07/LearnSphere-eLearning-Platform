@@ -1,4 +1,4 @@
-import prisma from '../utils/prisma.js';
+import { supabase } from '../utils/supabase.js';
 import {
     hashPassword,
     verifyPassword,
@@ -13,25 +13,39 @@ export class AuthService {
         const { email, password, name, role } = data;
 
         // Check if user already exists
-        const existingUser = await prisma.user.findUnique({ where: { email } });
+        const { data: existingUser } = await supabase
+            .from('User')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+
         if (existingUser) throw new Error('Email already registered');
 
         // Create user
         const hashedPassword = await hashPassword(password);
-        const user = await prisma.user.create({
-            data: {
+        const { data: user, error: createError } = await supabase
+            .from('User')
+            .insert({
                 email,
                 password: hashedPassword,
                 name,
-                role: role as Role,
-            },
-        });
+                role: (role as Role) || 'LEARNER',
+            })
+            .select()
+            .single();
+
+        if (createError) throw new Error(`Registration failed: ${createError.message}`);
 
         return await this.createAuthResponse(user);
     }
 
     async login(email: string, password: string) {
-        const user = await prisma.user.findUnique({ where: { email } });
+        const { data: user, error: findError } = await supabase
+            .from('User')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+
         if (!user) throw new Error('Invalid email or password');
 
         const isValid = await verifyPassword(password, user.password);
@@ -41,88 +55,94 @@ export class AuthService {
     }
 
     async googleAuth(payload: any) {
-        let user = await prisma.user.findUnique({ where: { email: payload.email } });
+        let { data: user } = await supabase
+            .from('User')
+            .select('*')
+            .eq('email', payload.email)
+            .maybeSingle();
 
         if (!user) {
             const randomPassword = await hashPassword(Math.random().toString(36).slice(-12));
-            user = await prisma.user.create({
-                data: {
+            const { data: newUser, error: createError } = await supabase
+                .from('User')
+                .insert({
                     email: payload.email,
                     password: randomPassword,
                     name: payload.name || payload.email.split('@')[0],
                     role: 'LEARNER',
                     avatar: payload.picture || null,
-                },
-            });
+                })
+                .select()
+                .single();
+
+            if (createError) throw new Error(`Google auth registration failed: ${createError.message}`);
+            user = newUser;
         }
 
         return await this.createAuthResponse(user);
     }
 
     async refreshTokens(token: string) {
-        const refreshToken = await prisma.refreshToken.findUnique({
-            where: { token },
-            include: { user: true },
-        });
+        const { data: refreshToken, error: findError } = await supabase
+            .from('RefreshToken')
+            .select('*, user:User(*)')
+            .eq('token', token)
+            .maybeSingle();
 
-        if (!refreshToken || refreshToken.expiresAt < new Date()) {
-            if (refreshToken) await prisma.refreshToken.delete({ where: { id: refreshToken.id } });
+        if (!refreshToken || new Date(refreshToken.expiresAt) < new Date()) {
+            if (refreshToken) {
+                await supabase.from('RefreshToken').delete().eq('id', refreshToken.id);
+            }
             throw new Error('Invalid or expired refresh token');
         }
 
+        // Supabase join syntax returns user as an object if one-to-one/many-to-one
         const accessToken = generateAccessToken(refreshToken.user);
         return { accessToken };
     }
 
     async logout(token: string) {
         try {
-            await prisma.refreshToken.delete({ where: { token } });
+            await supabase.from('RefreshToken').delete().eq('token', token);
         } catch (e) {
             // Ignore if already deleted
         }
     }
 
     async getCurrentUser(userId: string) {
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                role: true,
-                avatar: true,
-                totalPoints: true,
-                createdAt: true,
-            },
-        });
+        const { data: user, error: findError } = await supabase
+            .from('User')
+            .select('id, email, name, role, avatar, totalPoints, createdAt')
+            .eq('id', userId)
+            .maybeSingle();
+
         if (!user) throw new Error('User not found');
         return { user };
     }
 
     async listAdmins() {
-        return await prisma.user.findMany({
-            where: { role: { in: ['INSTRUCTOR', 'ADMIN'] } },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                avatar: true,
-                role: true,
-            },
-        });
+        const { data, error } = await supabase
+            .from('User')
+            .select('id, name, email, avatar, role')
+            .in('role', ['INSTRUCTOR', 'ADMIN']);
+
+        if (error) throw new Error(`Failed to list admins: ${error.message}`);
+        return data;
     }
 
     private async createAuthResponse(user: any) {
         const accessToken = generateAccessToken(user);
         const refreshTokenString = generateRefreshTokenString();
 
-        await prisma.refreshToken.create({
-            data: {
+        const { error: createError } = await supabase
+            .from('RefreshToken')
+            .insert({
                 token: refreshTokenString,
                 userId: user.id,
-                expiresAt: getRefreshTokenExpiry(),
-            },
-        });
+                expiresAt: getRefreshTokenExpiry().toISOString(),
+            });
+
+        if (createError) throw new Error(`Failed to create refresh token: ${createError.message}`);
 
         return {
             user: {

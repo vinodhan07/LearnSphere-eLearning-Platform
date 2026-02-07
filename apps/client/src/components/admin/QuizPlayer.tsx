@@ -13,6 +13,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import * as api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 interface Question {
     id: string;
@@ -40,32 +41,47 @@ const QuizPlayer: React.FC = () => {
     const TOTAL_QUIZ_POINTS = 50;
 
     useEffect(() => {
-        fetchQuizData();
-    }, [courseId]);
+        if (!courseId) return;
 
-    const fetchQuizData = async () => {
-        try {
+        const fetchQuestions = async () => {
             setIsLoading(true);
-            // In this setup, courseId passed to /quiz/:id is actually the lessonId representing the quiz
-            const data = await api.get<any[]>(`/quizzes/${courseId}/questions`);
-            const formatted = data.map(q => ({
-                ...q,
-                options: JSON.parse(q.options)
-            }));
-            setQuestions(formatted);
-            if (formatted.length > 0) {
-                setPointsPerQuestion(TOTAL_QUIZ_POINTS / formatted.length);
+            const { data, error } = await supabase
+                .from('QuizQuestion')
+                .select('*')
+                .eq('quizId', courseId)
+                .order('order', { ascending: true });
+
+            if (error) {
+                console.error("Quiz questions fetch error:", error);
+                toast({
+                    title: "Error",
+                    description: "Failed to load quiz content.",
+                    variant: "destructive",
+                });
+            } else if (data) {
+                const formatted = data.map(d => ({
+                    id: d.id,
+                    ...d,
+                    options: typeof d.options === 'string' ? JSON.parse(d.options) : d.options
+                } as Question));
+                setQuestions(formatted);
+                if (formatted.length > 0) {
+                    setPointsPerQuestion(TOTAL_QUIZ_POINTS / formatted.length);
+                }
             }
-        } catch (error) {
-            toast({
-                title: "Error",
-                description: "Failed to load quiz content.",
-                variant: "destructive",
-            });
-        } finally {
             setIsLoading(false);
-        }
-    };
+        };
+
+        fetchQuestions();
+
+        const channel = supabase.channel(`quiz-player-${courseId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'QuizQuestion', filter: `quizId=eq.${courseId}` }, fetchQuestions)
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [courseId, toast]);
 
     const handleOptionSelect = (index: number) => {
         if (showFeedback) return;

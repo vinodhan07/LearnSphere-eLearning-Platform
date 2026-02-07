@@ -1,5 +1,5 @@
 import { claudeAgent } from '../agents/ClaudeAgent.js';
-import prisma from '../utils/prisma.js';
+import { supabase } from '../utils/supabase.js';
 
 export class AIService {
     async getLessonExplanation(lessonId: string) {
@@ -15,28 +15,41 @@ export class AIService {
     }
 
     async getInstructorInsights() {
-        const attempts = await prisma.quizAttempt.groupBy({
-            by: ['lessonId'],
-            _avg: { score: true },
-            _count: { id: true },
-            where: { passed: false }
+        // Group by in Supabase is not directly available in select like Prisma groupBy.
+        // We'll use a complex select or a view/rpc for deep analytics.
+        // For now, let's simplify or use an RPC if available.
+        // Simplified approach: get failed attempts and calculate in JS (data might be large, but it's a demo)
+        const { data: attempts, error } = await supabase
+            .from('QuizAttempt')
+            .select('lessonId, score')
+            .eq('passed', false);
+
+        if (error || !attempts) throw new Error('Failed to get instructor insights');
+
+        const lessonStats: Record<string, { count: number, totalScore: number }> = {};
+        attempts.forEach(a => {
+            if (!lessonStats[a.lessonId]) lessonStats[a.lessonId] = { count: 0, totalScore: 0 };
+            lessonStats[a.lessonId].count++;
+            lessonStats[a.lessonId].totalScore += a.score;
         });
 
-        const sorted = [...attempts].sort((a, b) => b._count.id - a._count.id);
+        const sorted = Object.entries(lessonStats).sort((a, b) => b[1].count - a[1].count);
         const mostFailed = sorted[0];
 
         let hardestLesson = null;
         if (mostFailed) {
-            hardestLesson = await prisma.lesson.findUnique({
-                where: { id: mostFailed.lessonId },
-                select: { title: true, id: true }
-            });
+            const { data: lesson } = await supabase
+                .from('Lesson')
+                .select('title, id')
+                .eq('id', mostFailed[0])
+                .maybeSingle();
+            hardestLesson = lesson;
         }
 
         return {
             hardestLesson: hardestLesson ? hardestLesson.title : "N/A",
-            mostFailedCount: mostFailed ? mostFailed._count.id : 0,
-            averageScoreOnMostFailed: mostFailed ? mostFailed._avg.score : 0,
+            mostFailedCount: mostFailed ? mostFailed[1].count : 0,
+            averageScoreOnMostFailed: mostFailed ? (mostFailed[1].totalScore / mostFailed[1].count) : 0,
             recommendation: hardestLesson
                 ? `Students are struggling with "${hardestLesson.title}". Consider adding more document resources or an extra video explanation for this topic.`
                 : "Not enough data yet to provide deep insights."

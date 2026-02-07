@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, FileIcon, ExternalLink, Video, FileText, Image as ImageIcon } from "lucide-react";
 import * as api from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 interface Attachment {
     name: string;
@@ -110,21 +111,39 @@ const LessonEditorModal = ({ isOpen, onClose, courseId, lesson, onSave }: Lesson
         try {
             setIsSaving(true);
             const dataToSave = {
-                ...formData,
-                attachments: JSON.stringify(attachments)
+                title: formData.title,
+                description: formData.description,
+                content: formData.content,
+                duration: formData.duration,
+                type: formData.type,
+                order: formData.order,
+                allowDownload: formData.allowDownload,
+                courseId,
+                attachments: JSON.stringify(attachments),
+                updatedAt: new Date().toISOString()
             };
 
-            let savedLesson;
             if (lesson?.id) {
-                savedLesson = await api.put(`/lessons/${lesson.id}`, dataToSave);
+                const { error } = await supabase
+                    .from('Lesson')
+                    .update(dataToSave)
+                    .eq('id', lesson.id);
+                if (error) throw error;
                 toast({ title: "Success", description: "Lesson updated" });
             } else {
-                savedLesson = await api.post(`/lessons/course/${courseId}`, dataToSave);
+                const { error } = await supabase
+                    .from('Lesson')
+                    .insert({
+                        ...dataToSave,
+                        createdAt: new Date().toISOString()
+                    });
+                if (error) throw error;
                 toast({ title: "Success", description: "Lesson created" });
             }
-            onSave(savedLesson);
+            onSave(formData);
             onClose();
         } catch (error) {
+            console.error("Failed to save lesson:", error);
             toast({
                 title: "Error",
                 description: "Failed to save lesson",

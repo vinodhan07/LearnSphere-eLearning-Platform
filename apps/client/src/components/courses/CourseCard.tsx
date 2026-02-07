@@ -20,7 +20,7 @@ const CourseCard = ({ course, showProgress = false, index = 0 }: CourseCardProps
     if (course.progress > 0) {
       return <Button size="sm" className="bg-gradient-hero text-primary-foreground font-semibold">Continue</Button>;
     }
-    if (course.access === "payment" && course.price) {
+    if (course.access === "PAID" && course.price) {
       return <Button size="sm" className="bg-gradient-accent text-accent-foreground font-semibold">Buy ${course.price}</Button>;
     }
     return <Button size="sm" className="bg-gradient-hero text-primary-foreground font-semibold">Start Course</Button>;
