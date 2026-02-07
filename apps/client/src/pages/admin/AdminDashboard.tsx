@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -36,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import * as api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import CreateCourseModal from "@/components/admin/CreateCourseModal";
+import { supabase } from "@/lib/supabase";
 
 const statusColors: Record<string, string> = {
   draft: "bg-slate-500/10 text-slate-400 border-slate-500/20",
@@ -60,39 +61,53 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
-
-  const fetchCourses = async () => {
-    try {
-      setIsLoading(true);
-      const data = await api.get<Course[]>('/courses/admin/list');
-      setCourses(data);
-    } catch (error) {
-      toast({
-        title: "Failed to fetch courses",
-        description: "Please check your connection or try again later.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchInsights = async () => {
-    try {
-      const data = await api.get<any>("/ai/instructor-insights");
-      setInsights(data);
-    } catch (error) {
-      console.error("Failed to fetch insights", error);
-    }
-  };
+  const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user) {
+      const fetchCourses = async () => {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('Course')
+          .select('*')
+          .eq('responsibleAdminId', user.id)
+          .order('createdAt', { ascending: false });
+
+        if (data) setCourses(data as any);
+        setIsLoading(false);
+      };
+
       fetchCourses();
+
+      // Real-time update for the current user's courses
+      const channel = supabase
+        .channel(`admin-courses-${user.id}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'Course',
+          filter: `responsibleAdminId=eq.${user.id}`
+        }, (payload) => {
+          fetchCourses();
+        })
+        .subscribe();
+
+      // Fetch insights
+      const fetchInsights = async () => {
+        try {
+          const data = await api.get<any>("/ai/instructor-insights");
+          setInsights(data);
+        } catch (error) {
+          console.error("Failed to fetch insights", error);
+        }
+      };
       fetchInsights();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   const filteredCourses = courses.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase())
@@ -120,8 +135,12 @@ const AdminDashboard = () => {
     if (!deleteCourseId) return;
     try {
       setIsDeleting(true);
-      await api.del(`/courses/${deleteCourseId}`);
-      setCourses(courses.filter(c => c.id !== deleteCourseId));
+      const { error } = await supabase
+        .from('Course')
+        .delete()
+        .eq('id', deleteCourseId);
+
+      if (error) throw error;
       toast({ title: "Course Deleted", description: "The course has been permanently removed." });
     } catch (error) {
       toast({ title: "Error", description: "Failed to delete course", variant: "destructive" });
@@ -298,12 +317,12 @@ const AdminDashboard = () => {
                                   {course.title}
                                 </h3>
                                 <div className="flex flex-wrap gap-1.5 pt-1">
-                                  {course.tags.map((tag) => (
+                                  {course.tags?.map((tag) => (
                                     <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
                                       {tag}
                                     </span>
                                   ))}
-                                  {course.tags.length === 0 && (
+                                  {(!course.tags || course.tags.length === 0) && (
                                     <span className="text-[10px] text-muted-foreground italic">No tags</span>
                                   )}
                                 </div>
@@ -318,14 +337,14 @@ const AdminDashboard = () => {
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Views</span>
                                 <div className="flex items-center gap-1.5 text-foreground">
                                   <EyeIcon className="h-3 w-3 text-orange-500" />
-                                  <span className="text-sm font-semibold">{course.viewsCount || 0}</span>
+                                  <span className="text-sm font-semibold">{course.views || 0}</span>
                                 </div>
                               </div>
                               <div className="flex flex-col gap-1">
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Lessons</span>
                                 <div className="flex items-center gap-1.5 text-foreground">
                                   <BookOpen className="h-3 w-3 text-blue-500" />
-                                  <span className="text-sm font-semibold">{course.lessonsCount || 0}</span>
+                                  <span className="text-sm font-semibold">{course.totalLessons || 0}</span>
                                 </div>
                               </div>
                               <div className="flex flex-col gap-1">
@@ -378,11 +397,11 @@ const AdminDashboard = () => {
                                 {course.title}
                               </span>
                               <div className="flex gap-2 mt-1.5">
-                                {course.tags.slice(0, 3).map((tag) => (
+                                {course.tags?.slice(0, 3).map((tag) => (
                                   <span key={tag} className="text-[10px] text-muted-foreground">#{tag}</span>
                                 ))}
-                                {course.tags.length > 3 && (
-                                  <span className="text-[10px] text-muted-foreground/60">+{course.tags.length - 3} more</span>
+                                {(course.tags?.length || 0) > 3 && (
+                                  <span className="text-[10px] text-muted-foreground/60">+{course.tags!.length - 3} more</span>
                                 )}
                               </div>
                             </div>
@@ -393,10 +412,10 @@ const AdminDashboard = () => {
                             </Badge>
                           </td>
                           <td className="py-4 px-6 text-center">
-                            <span className="text-sm font-medium text-foreground">{course.viewsCount || 0}</span>
+                            <span className="text-sm font-medium text-foreground">{course.views || 0}</span>
                           </td>
                           <td className="py-4 px-6 text-center">
-                            <span className="text-sm font-medium text-foreground">{course.lessonsCount || 0}</span>
+                            <span className="text-sm font-medium text-foreground">{course.totalLessons || 0}</span>
                           </td>
                           <td className="py-4 px-6 text-center text-sm font-medium text-foreground">
                             {course.totalDuration || 0} min
@@ -424,7 +443,6 @@ const AdminDashboard = () => {
       <CreateCourseModal
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
-        onSuccess={fetchCourses}
       />
 
       <DeleteConfirmationModal

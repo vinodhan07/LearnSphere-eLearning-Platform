@@ -71,8 +71,8 @@ const CourseCatalog = () => {
                 key={cat}
                 variant={activeCategory === cat ? "default" : "outline"}
                 className={`cursor-pointer transition-colors ${activeCategory === cat
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted"
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
                   }`}
                 onClick={() => setActiveCategory(cat)}
               >

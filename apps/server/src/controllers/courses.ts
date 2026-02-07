@@ -57,11 +57,12 @@ export async function createCourse(req: Request, res: Response): Promise<void> {
  */
 export async function listCourses(req: Request, res: Response): Promise<void> {
     try {
+        console.log('GET /api/courses - Start');
         const courses = await courseService.listCourses(!!req.user);
         res.json(courses);
-    } catch (error) {
-        console.error('List courses error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+    } catch (error: any) {
+        console.error('List courses controller error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
     }
 }
 

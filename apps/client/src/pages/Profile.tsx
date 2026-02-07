@@ -8,25 +8,26 @@ import { Button } from "@/components/ui/button";
 import { User, Mail, Shield, Calendar, Trophy, Settings } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import { motion } from "framer-motion";
+import { supabase } from "@/lib/supabase";
 
 export default function Profile() {
     const { user, isAuthenticated } = useAuth();
     const [enrollmentCount, setEnrollmentCount] = useState(0);
 
     useEffect(() => {
-        async function fetchStats() {
-            if (!user || !isAuthenticated) return;
-            try {
-                const data = await api.get<any[]>('/courses/my/enrolled');
-                setEnrollmentCount(data.length);
-            } catch (error) {
-                console.error('Failed to fetch stats:', error);
-            }
-        }
-        if (isAuthenticated) {
-            fetchStats();
-        }
-    }, [user, isAuthenticated]);
+        if (!user?.id || !isAuthenticated) return;
+
+        const fetchEnrollmentCount = async () => {
+            const { count, error } = await supabase
+                .from('Enrollment')
+                .select('*', { count: 'exact', head: true })
+                .eq('userId', user.id);
+
+            if (count !== null) setEnrollmentCount(count);
+        };
+
+        fetchEnrollmentCount();
+    }, [user?.id, isAuthenticated]);
 
     if (!user) return null;
 

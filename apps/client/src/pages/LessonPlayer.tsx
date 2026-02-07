@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -18,7 +18,6 @@ import {
   Clock,
   Download,
   ExternalLink,
-  RotateCcw,
   Trophy,
   Loader2
 } from "lucide-react";
@@ -26,11 +25,13 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import * as api from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import QuizFlow from "@/components/learner/QuizFlow";
 import PointsNotification from "@/components/common/PointsNotification";
 import Navbar from "@/components/layout/Navbar";
+import { supabase } from "@/lib/supabase";
 
 interface Lesson {
   id: string;
@@ -50,22 +51,18 @@ interface Course {
   description: string;
 }
 
-interface ProgressData {
-  lessonId: string;
-  isCompleted: boolean;
-  timeSpent: number;
-}
-
 const LessonPlayerPage = () => {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [course, setCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  const [enrollmentId, setEnrollmentId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // AI related
@@ -76,49 +73,71 @@ const LessonPlayerPage = () => {
   const [earnedPoints, setEarnedPoints] = useState(0);
 
   useEffect(() => {
-    if (courseId) {
+    if (courseId && user) {
+      const fetchData = async () => {
+        try {
+          setIsLoading(true);
+
+          // Fetch course and lessons
+          const { data: courseData } = await supabase
+            .from('Course')
+            .select('*')
+            .eq('id', courseId)
+            .maybeSingle();
+
+          const { data: lessonsData } = await supabase
+            .from('Lesson')
+            .select('*')
+            .eq('courseId', courseId)
+            .order('order', { ascending: true });
+
+          if (courseData) setCourse(courseData as any);
+          if (lessonsData) setLessons(lessonsData as any);
+
+          // Fetch enrollment
+          const { data: enrollData } = await supabase
+            .from('Enrollment')
+            .select('*')
+            .eq('courseId', courseId)
+            .eq('userId', user.id)
+            .maybeSingle();
+
+          if (enrollData) {
+            setEnrollmentId(enrollData.id);
+            setCompletedIds(new Set(enrollData.completedLessons || []));
+          }
+        } catch (error) {
+          toast({ title: "Error", description: "Failed to load course content", variant: "destructive" });
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
       fetchData();
     }
-  }, [courseId]);
-
-  const fetchData = async () => {
-    try {
-      setIsLoading(true);
-      const [courseData, lessonsData] = await Promise.all([
-        api.get<Course>(`/courses/${courseId}`),
-        api.get<Lesson[]>(`/lessons/course/${courseId}`)
-      ]);
-
-      setCourse(courseData);
-      setLessons(lessonsData.sort((a, b) => a.order - b.order));
-
-      // Fetch progress
-      try {
-        const progressData = await api.get<ProgressData[]>(`/quizzes/course/${courseId}/progress`);
-        const completedSet = new Set<string>();
-        if (Array.isArray(progressData)) {
-          progressData.forEach(p => {
-            if (p.isCompleted) completedSet.add(p.lessonId);
-          });
-        }
-        setCompletedIds(completedSet);
-      } catch (e) {
-        console.error("Progress fetch failed", e);
-      }
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to load course content", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [courseId, user]);
 
   const current = lessons[currentIndex];
 
   const handleMarkComplete = async () => {
-    if (!current) return;
+    if (!current || !enrollmentId) return;
     try {
-      await api.post(`/quizzes/${current.id}/progress`, { isCompleted: true });
-      setCompletedIds(prev => new Set([...prev, current.id]));
+      const newCompleted = [...Array.from(completedIds), current.id];
+      const progress = Math.round((newCompleted.length / lessons.length) * 100);
+
+      const { error } = await supabase
+        .from('Enrollment')
+        .update({
+          completedLessons: newCompleted,
+          progress,
+          status: progress === 100 ? 'completed' : 'in_progress',
+          completedAt: progress === 100 ? new Date().toISOString() : null
+        })
+        .eq('id', enrollmentId);
+
+      if (error) throw error;
+
+      setCompletedIds(new Set(newCompleted));
       toast({ title: "Lesson Completed", description: "Your progress has been saved." });
     } catch (error) {
       toast({ title: "Error", description: "Failed to save progress", variant: "destructive" });
@@ -130,6 +149,7 @@ const LessonPlayerPage = () => {
     try {
       setIsExplaining(true);
       setExplanation(null);
+      // AI logic still calls the backend as it requires the AI model key
       const res = await api.post<any>(`/ai/explain`, { lessonId: current.id });
       setExplanation(res.explanation);
     } catch (error) {
@@ -154,15 +174,25 @@ const LessonPlayerPage = () => {
   };
 
   if (isLoading) {
-    return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin h-10 w-10 text-primary" /></div>;
+    return (
+      <div className="h-screen flex flex-col bg-background">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="animate-spin h-10 w-10 text-primary" />
+        </div>
+      </div>
+    );
   }
 
   if (!course || lessons.length === 0) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center p-4">
-        <BookOpen className="h-12 w-12 text-muted-foreground/30 mb-4" />
-        <h2 className="text-xl font-bold">No Content Found</h2>
-        <Link to="/courses" className="mt-4"><Button>Back to Catalog</Button></Link>
+      <div className="h-screen flex flex-col bg-background">
+        <Navbar />
+        <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
+          <BookOpen className="h-12 w-12 text-muted-foreground/30 mb-4" />
+          <h2 className="text-xl font-bold">No Content Found</h2>
+          <Link to="/courses" className="mt-4"><Button>Back to Catalog</Button></Link>
+        </div>
       </div>
     );
   }
@@ -181,7 +211,7 @@ const LessonPlayerPage = () => {
           pointsReward={current.pointsReward || 10}
           onComplete={(pts) => {
             setEarnedPoints(pts);
-            setCompletedIds(prev => new Set([...prev, current.id]));
+            handleMarkComplete();
           }}
         />
       );
@@ -243,7 +273,7 @@ const LessonPlayerPage = () => {
         <div className="flex items-center gap-4">
           <Link to="/courses">
             <Button variant="ghost" size="sm" className="h-8 px-2 gap-2 text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Back to Catalog</span>
+              <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Back</span>
             </Button>
           </Link>
           <div className="h-4 w-px bg-border hidden sm:block" />

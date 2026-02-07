@@ -1,15 +1,17 @@
-import prisma from '../utils/prisma.js';
+import { supabase } from '../utils/supabase.js';
 import { Visibility, AccessRule } from '../../../../shared/constants.js';
+import { listAdminCourses } from '../controllers/courses.js';
 
 export class CourseService {
     async createCourse(data: any, adminId: string) {
         const { title, description, tags, image, published, website, visibility, accessRule, price, currency } = data;
 
-        const course = await prisma.course.create({
-            data: {
+        const { data: course, error } = await supabase
+            .from('Course')
+            .insert({
                 title,
                 description,
-                tags: tags ? JSON.stringify(tags) : null,
+                tags: tags || [],
                 image: image || null,
                 published,
                 website: website || null,
@@ -18,61 +20,93 @@ export class CourseService {
                 price: accessRule === AccessRule.PAID ? price : null,
                 currency,
                 responsibleAdminId: adminId,
-            },
-            include: {
-                responsibleAdmin: {
-                    select: { id: true, name: true, email: true, avatar: true },
-                },
-            },
-        });
+            })
+            .select(`
+                *,
+                responsibleAdmin:User(id, name, email, avatar)
+            `)
+            .single();
+
+        if (error) throw new Error(`Failed to create course: ${error.message}`);
 
         return {
             ...course,
-            tags: course.tags ? JSON.parse(course.tags) : [],
+            tags: course.tags || [],
         };
     }
 
     async listCourses(isAuthenticated: boolean) {
-        const where: any = { published: true };
-        if (!isAuthenticated) {
-            where.visibility = Visibility.EVERYONE;
+        console.log('listCourses called, isAuthenticated:', isAuthenticated);
+        try {
+            let query = supabase
+                .from('Course')
+                .select(`
+                    *,
+                    responsibleAdmin:User(id, name, avatar)
+                `)
+                .eq('published', true);
+
+            if (!isAuthenticated) {
+                query = query.eq('visibility', Visibility.EVERYONE);
+            }
+
+            const { data: courses, error } = await query.order('createdAt', { ascending: false });
+
+            if (error) {
+                console.error('Supabase error in listCourses:', error);
+                throw new Error(`Failed to list courses: ${error.message}`);
+            }
+
+            console.log(`Found ${courses?.length || 0} courses`);
+
+            // For each course, get the enrollment count
+            const coursesWithCounts = await Promise.all(
+                (courses || []).map(async (course: any) => {
+                    const { count } = await supabase
+                        .from('Enrollment')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('courseId', course.id);
+
+                    return {
+                        ...course,
+                        tags: course.tags || [],
+                        enrolledCount: count || 0,
+                    };
+                })
+            );
+
+            return coursesWithCounts;
+        } catch (err) {
+            console.error('Catch block in listCourses:', err);
+            throw err;
         }
-
-        const courses = await prisma.course.findMany({
-            where,
-            include: {
-                responsibleAdmin: { select: { id: true, name: true, avatar: true } },
-                _count: { select: { enrollments: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
-
-        return courses.map((course: any) => ({
-            ...course,
-            tags: course.tags ? JSON.parse(course.tags) : [],
-            enrolledCount: course._count.enrollments,
-            _count: undefined,
-        }));
     }
 
     async getCourse(id: string, user?: { userId: string, role: string }) {
         const isAuthenticated = !!user;
-        const course = await prisma.course.findUnique({
-            where: { id },
-            include: {
-                responsibleAdmin: { select: { id: true, name: true, email: true, avatar: true } },
-                _count: { select: { enrollments: true } },
-            },
-        });
+        const { data: course, error } = await supabase
+            .from('Course')
+            .select(`
+                *,
+                responsibleAdmin:User(id, name, email, avatar)
+            `)
+            .eq('id', id)
+            .maybeSingle();
 
-        if (!course) throw new Error('Course not found');
+        if (error || !course) throw new Error('Course not found');
+
+        // Get enrollment count
+        const { count: enrolledCount } = await supabase
+            .from('Enrollment')
+            .select('*', { count: 'exact', head: true })
+            .eq('courseId', id);
 
         const updateViews = !isAuthenticated || (user!.role === 'LEARNER');
         if (updateViews) {
-            prisma.course.update({
-                where: { id },
-                data: { viewsCount: { increment: 1 } }
-            }).catch(err => console.error('Failed to increment views:', err));
+            void (async () => {
+                const { error: rpcError } = await supabase.rpc('increment_course_views', { course_id: id });
+                if (rpcError) console.error('Failed to increment views:', rpcError.message);
+            })();
         }
 
         if (!course.published) {
@@ -89,9 +123,12 @@ export class CourseService {
         let enrollmentStatus: string | null = null;
 
         if (isAuthenticated) {
-            const enrollment = await prisma.enrollment.findUnique({
-                where: { userId_courseId: { userId: user!.userId, courseId: id } },
-            });
+            const { data: enrollment } = await supabase
+                .from('Enrollment')
+                .select('*')
+                .eq('userId', user!.userId)
+                .eq('courseId', id)
+                .maybeSingle();
 
             if (enrollment) {
                 canStart = true;
@@ -102,9 +139,13 @@ export class CourseService {
                         canStart = true;
                         break;
                     case AccessRule.INVITE:
-                        const invitation = await prisma.courseInvitation.findUnique({
-                            where: { courseId_userId: { courseId: id, userId: user!.userId } },
-                        });
+                        const { data: invitation } = await supabase
+                            .from('CourseInvitation')
+                            .select('*')
+                            .eq('courseId', id)
+                            .eq('userId', user!.userId)
+                            .maybeSingle();
+
                         canStart = invitation?.status === 'ACCEPTED';
                         enrollmentStatus = invitation ? `INVITED_${invitation.status}` : 'NOT_INVITED';
                         break;
@@ -118,16 +159,20 @@ export class CourseService {
 
         return {
             ...course,
-            tags: course.tags ? JSON.parse(course.tags) : [],
-            enrolledCount: (course as any)._count.enrollments,
+            tags: course.tags || [],
+            enrolledCount: enrolledCount || 0,
             canStart,
             enrollmentStatus,
-            _count: undefined,
         };
     }
 
     async updateCourse(id: string, data: any, user: { userId: string, role: string }) {
-        const existingCourse = await prisma.course.findUnique({ where: { id } });
+        const { data: existingCourse } = await supabase
+            .from('Course')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
         if (!existingCourse) throw new Error('Course not found');
 
         if (existingCourse.responsibleAdminId !== user.userId && user.role !== 'ADMIN') {
@@ -149,7 +194,7 @@ export class CourseService {
         const updateData: any = {};
         if (data.title !== undefined) updateData.title = data.title;
         if (data.description !== undefined) updateData.description = data.description;
-        if (data.tags !== undefined) updateData.tags = JSON.stringify(data.tags);
+        if (data.tags !== undefined) updateData.tags = data.tags;
         if (data.image !== undefined) updateData.image = data.image || null;
         if (data.published !== undefined) updateData.published = data.published;
         if (data.website !== undefined) updateData.website = data.website || null;
@@ -161,47 +206,70 @@ export class CourseService {
         if (data.price !== undefined) updateData.price = data.price;
         if (data.currency !== undefined) updateData.currency = data.currency;
 
-        const course = await prisma.course.update({
-            where: { id },
-            data: updateData,
-            include: {
-                responsibleAdmin: { select: { id: true, name: true, email: true, avatar: true } },
-            },
-        });
+        const { data: course, error } = await supabase
+            .from('Course')
+            .update(updateData)
+            .eq('id', id)
+            .select(`
+                *,
+                responsibleAdmin:User(id, name, email, avatar)
+            `)
+            .single();
+
+        if (error) throw new Error(`Failed to update course: ${error.message}`);
 
         return {
             ...course,
-            tags: course.tags ? JSON.parse(course.tags) : [],
+            tags: course.tags || [],
         };
     }
 
     async deleteCourse(id: string, user: { userId: string, role: string }) {
-        const course = await prisma.course.findUnique({ where: { id } });
+        const { data: course } = await supabase
+            .from('Course')
+            .select('responsibleAdminId')
+            .eq('id', id)
+            .maybeSingle();
+
         if (!course) throw new Error('Course not found');
 
         if (course.responsibleAdminId !== user.userId && user.role !== 'ADMIN') {
             throw new Error('Not authorized to delete this course');
         }
 
-        await prisma.course.delete({ where: { id } });
+        const { error } = await supabase.from('Course').delete().eq('id', id);
+        if (error) throw new Error(`Failed to delete course: ${error.message}`);
     }
 
     async enroll(id: string, userId: string, paymentInfo?: any) {
-        const course = await prisma.course.findUnique({ where: { id } });
+        const { data: course } = await supabase
+            .from('Course')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
         if (!course || !course.published) throw new Error('Course not found');
 
-        const existingEnrollment = await prisma.enrollment.findUnique({
-            where: { userId_courseId: { userId, courseId: id } },
-        });
+        const { data: existingEnrollment } = await supabase
+            .from('Enrollment')
+            .select('*')
+            .eq('userId', userId)
+            .eq('courseId', id)
+            .maybeSingle();
+
         if (existingEnrollment) throw new Error('Already enrolled in this course');
 
         switch (course.accessRule) {
             case AccessRule.OPEN:
                 break;
             case AccessRule.INVITE:
-                const invitation = await prisma.courseInvitation.findUnique({
-                    where: { courseId_userId: { courseId: id, userId } },
-                });
+                const { data: invitation } = await supabase
+                    .from('CourseInvitation')
+                    .select('*')
+                    .eq('courseId', id)
+                    .eq('userId', userId)
+                    .maybeSingle();
+
                 if (!invitation || invitation.status !== 'ACCEPTED') {
                     const err: any = new Error('This course requires an invitation to enroll');
                     err.requiresInvitation = true;
@@ -216,90 +284,107 @@ export class CourseService {
                     err.currency = course.currency;
                     throw err;
                 }
-                return await prisma.enrollment.create({
-                    data: { userId, courseId: id, paidAmount: paymentInfo.paidAmount || course.price, paidAt: new Date() },
-                });
+                const { data: paidEnrollment, error: payError } = await supabase
+                    .from('Enrollment')
+                    .insert({ userId, courseId: id, paidAmount: paymentInfo.paidAmount || course.price, paidAt: new Date().toISOString() })
+                    .select()
+                    .single();
+                if (payError) throw new Error(`Enrollment failed: ${payError.message}`);
+                return paidEnrollment;
         }
 
-        return await prisma.enrollment.create({
-            data: { userId, courseId: id },
-        });
+        const { data: enrollment, error: enrollError } = await supabase
+            .from('Enrollment')
+            .insert({ userId, courseId: id })
+            .select()
+            .single();
+
+        if (enrollError) throw new Error(`Enrollment failed: ${enrollError.message}`);
+        return enrollment;
     }
 
     async listAdminCourses(user: { userId: string, role: string }) {
-        const where: any = {};
-        if (user.role === 'INSTRUCTOR') where.responsibleAdminId = user.userId;
+        let query = supabase
+            .from('Course')
+            .select(`
+                *,
+                responsibleAdmin:User(id, name, avatar),
+                lessons:Lesson(duration)
+            `);
 
-        const courses = await prisma.course.findMany({
-            where,
-            include: {
-                responsibleAdmin: { select: { id: true, name: true, avatar: true } },
-                lessons: { select: { duration: true } },
-                _count: { select: { enrollments: true, invitations: true, lessons: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
+        if (user.role === 'INSTRUCTOR') {
+            query = query.eq('responsibleAdminId', user.userId);
+        }
 
-        return courses.map((course: any) => ({
-            ...course,
-            tags: course.tags ? JSON.parse(course.tags) : [],
-            enrolledCount: course._count.enrollments,
-            invitationCount: course._count.invitations,
-            lessonsCount: course._count.lessons,
-            totalDuration: course.lessons.reduce((sum: number, lesson: any) => sum + (lesson.duration || 0), 0),
-            _count: undefined,
-            lessons: undefined,
-        }));
+        const { data: courses, error } = await query.order('createdAt', { ascending: false });
+
+        if (error) throw new Error(`Failed to list admin courses: ${error.message}`);
+
+        // For each course, get the counts
+        const coursesWithCounts = await Promise.all(
+            (courses || []).map(async (course: any) => {
+                const [enrollResult, inviteResult, lessonResult] = await Promise.all([
+                    supabase.from('Enrollment').select('*', { count: 'exact', head: true }).eq('courseId', course.id),
+                    supabase.from('CourseInvitation').select('*', { count: 'exact', head: true }).eq('courseId', course.id),
+                    supabase.from('Lesson').select('*', { count: 'exact', head: true }).eq('courseId', course.id),
+                ]);
+
+                return {
+                    ...course,
+                    tags: course.tags || [],
+                    enrolledCount: enrollResult.count || 0,
+                    invitationCount: inviteResult.count || 0,
+                    lessonsCount: lessonResult.count || 0,
+                    totalDuration: (course.lessons || []).reduce((sum: number, lesson: any) => sum + (lesson.duration || 0), 0),
+                };
+            })
+        );
+
+        return coursesWithCounts;
     }
 
     async getAttendees(id: string) {
         // Fetch base enrollments and invitations
-        const [enrollments, invitations] = await Promise.all([
-            prisma.enrollment.findMany({
-                where: { courseId: id },
-                include: {
-                    user: { select: { id: true, name: true, email: true, avatar: true } }
-                },
-            }),
-            prisma.courseInvitation.findMany({
-                where: { courseId: id },
-                include: {
-                    user: { select: { id: true, name: true, email: true, avatar: true } }
-                },
-            }),
+        const [enrollRes, inviteRes] = await Promise.all([
+            supabase.from('Enrollment').select('*, user:User(id, name, email, avatar)').eq('courseId', id),
+            supabase.from('CourseInvitation').select('*, user:User(id, name, email, avatar)').eq('courseId', id),
         ]);
 
+        if (enrollRes.error) throw new Error(`Failed to get enrollments: ${enrollRes.error.message}`);
+        if (inviteRes.error) throw new Error(`Failed to get invitations: ${inviteRes.error.message}`);
+
+        const enrollments = enrollRes.data || [];
+        const invitations = inviteRes.data || [];
+
         // Enhance enrollments with additional metrics (Last Active, Quiz Scores)
-        // We do this in parallel to minimize DB round trips, though for large courses this might need optimization
-        const enhancedEnrollments = await Promise.all(enrollments.map(async (enrollment) => {
+        const enhancedEnrollments = await Promise.all(enrollments.map(async (enrollment: any) => {
             // 1. Get Last Active time (max lastAccessed from LessonProgress for this course)
-            const lastActiveProgress = await prisma.lessonProgress.findFirst({
-                where: {
-                    userId: enrollment.userId,
-                    lesson: { courseId: id }
-                },
-                orderBy: { lastAccessed: 'desc' },
-                select: { lastAccessed: true }
-            });
+            const { data: progressData } = await supabase
+                .from('LessonProgress')
+                .select('lastAccessed, lesson:Lesson!inner(courseId)')
+                .eq('userId', enrollment.userId)
+                .eq('lesson.courseId', id)
+                .order('lastAccessed', { ascending: false })
+                .limit(1)
+                .maybeSingle();
 
             // 2. Calculate Average Quiz Score
-            const quizAttempts = await prisma.quizAttempt.findMany({
-                where: {
-                    userId: enrollment.userId,
-                    lesson: { courseId: id }
-                },
-                select: { score: true }
-            });
+            const { data: quizAttempts } = await supabase
+                .from('QuizAttempt')
+                .select('score, lesson:Lesson!inner(courseId)')
+                .eq('userId', enrollment.userId)
+                .eq('lesson.courseId', id);
 
-            const avgScore = quizAttempts.length > 0
-                ? Math.round(quizAttempts.reduce((acc, curr) => acc + curr.score, 0) / quizAttempts.length)
-                : 0; // Or null if no quizzes taken
+            const attempts = quizAttempts || [];
+            const avgScore = attempts.length > 0
+                ? Math.round(attempts.reduce((acc, curr) => acc + curr.score, 0) / attempts.length)
+                : 0;
 
             return {
                 ...enrollment,
-                lastAccessed: lastActiveProgress?.lastAccessed || enrollment.startedAt, // Fallback to start date
+                lastAccessed: progressData?.lastAccessed || enrollment.enrolledAt,
                 performance: avgScore,
-                completed: enrollment.progress === 100, // Infer certificate eligibility
+                completed: enrollment.progress === 100,
             };
         }));
 
@@ -307,91 +392,124 @@ export class CourseService {
     }
 
     async inviteAttendee(id: string, email: string) {
-        const user = await prisma.user.findUnique({ where: { email } });
+        const { data: user } = await supabase
+            .from('User')
+            .select('id')
+            .eq('email', email)
+            .maybeSingle();
+
         if (!user) throw new Error('User with this email not found');
 
-        return await prisma.courseInvitation.upsert({
-            where: { courseId_userId: { courseId: id, userId: user.id } },
-            update: { status: 'PENDING', invitedAt: new Date() },
-            create: { courseId: id, userId: user.id, status: 'PENDING' },
-        });
+        const { data: existingInvitation } = await supabase
+            .from('CourseInvitation')
+            .select('*')
+            .eq('courseId', id)
+            .eq('userId', user.id)
+            .maybeSingle();
+
+        if (existingInvitation) {
+            const { data, error } = await supabase
+                .from('CourseInvitation')
+                .update({
+                    status: 'PENDING',
+                    invitedAt: new Date().toISOString()
+                })
+                .eq('id', existingInvitation.id)
+                .select()
+                .single();
+            if (error) throw new Error(`Failed to invite attendee: ${error.message}`);
+            return data;
+        }
+
+        const { data, error } = await supabase
+            .from('CourseInvitation')
+            .insert({
+                courseId: id,
+                userId: user.id,
+                status: 'PENDING',
+                invitedAt: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (error) throw new Error(`Failed to invite attendee: ${error.message}`);
+        return data;
     }
 
     async bulkUnenroll(courseId: string, userIds: string[]) {
-        // Delete enrollments
-        await prisma.enrollment.deleteMany({
-            where: {
-                courseId,
-                userId: { in: userIds }
-            }
-        });
+        const { error } = await supabase
+            .from('Enrollment')
+            .delete()
+            .eq('courseId', courseId)
+            .in('userId', userIds);
 
-        // Also delete progress to ensure clean slate if they re-enroll? 
-        // Usually safer to keep it, but "Reset" is a separate action. 
-        // Requirements say "Unenroll", usually implies removal.
-        // Let's keep data for now unless explicitly asked to wipe history, 
-        // but typically unenroll removes access.
+        if (error) throw new Error(`Failed to bulk unenroll: ${error.message}`);
     }
 
     async bulkResetProgress(courseId: string, userIds: string[]) {
-        return await prisma.$transaction(async (tx) => {
-            // 1. Reset Enrollment progress
-            await tx.enrollment.updateMany({
-                where: {
-                    courseId,
-                    userId: { in: userIds }
-                },
-                data: {
-                    progress: 0,
-                    completedAt: null,
-                    startedAt: new Date() // Reset start time? Maybe. Let's update it to 're-started'.
-                }
-            });
+        // 1. Reset Enrollment progress
+        const { error: enrollError } = await supabase
+            .from('Enrollment')
+            .update({
+                progress: 0,
+                completedAt: null,
+            })
+            .eq('courseId', courseId)
+            .in('userId', userIds);
 
-            // 2. Delete LessonProgress for this course
-            // Need to find lessons first to filter simple delete
-            // OR use deleteMany with where lesson.courseId provided prisma supports relation filtering in deleteMany (it generally doesn't for deep relations)
-            // So we fetch lessons first.
-            const lessons = await tx.lesson.findMany({ where: { courseId }, select: { id: true } });
-            const lessonIds = lessons.map(l => l.id);
+        if (enrollError) throw new Error(`Failed to reset enrollment progress: ${enrollError.message}`);
 
-            await tx.lessonProgress.deleteMany({
-                where: {
-                    userId: { in: userIds },
-                    lessonId: { in: lessonIds }
-                }
-            });
+        // 2. Fetch lessons to filter progress/attempts delete
+        const { data: lessons } = await supabase
+            .from('Lesson')
+            .select('id')
+            .eq('courseId', courseId);
 
-            // 3. Delete QuizAttempts? 'Reset Progress' usually implies retaking quizzes.
-            await tx.quizAttempt.deleteMany({
-                where: {
-                    userId: { in: userIds },
-                    lessonId: { in: lessonIds }
-                }
-            });
-        });
+        const lessonIds = (lessons || []).map(l => l.id);
+        if (lessonIds.length === 0) return;
+
+        // 3. Delete LessonProgress and QuizAttempts for this course and users
+        const [progressError, quizError] = await Promise.all([
+            supabase.from('LessonProgress').delete().in('userId', userIds).in('lessonId', lessonIds),
+            supabase.from('QuizAttempt').delete().in('userId', userIds).in('lessonId', lessonIds),
+        ]);
+
+        if (progressError.error) throw new Error(`Failed to delete lesson progress: ${progressError.error.message}`);
+        if (quizError.error) throw new Error(`Failed to delete quiz attempts: ${quizError.error.message}`);
     }
 
     async listEnrolledCourses(userId: string) {
-        const enrollments = await prisma.enrollment.findMany({
-            where: { userId },
-            include: {
-                course: {
-                    include: {
-                        responsibleAdmin: { select: { id: true, name: true, avatar: true } },
-                        _count: { select: { lessons: true } }
-                    }
-                }
-            }
-        });
+        const { data: enrollments, error } = await supabase
+            .from('Enrollment')
+            .select(`
+                *,
+                course:Course(
+                    *,
+                    responsibleAdmin:User(id, name, avatar)
+                )
+            `)
+            .eq('userId', userId);
 
-        return enrollments.map(e => ({
-            ...e.course,
-            tags: e.course.tags ? JSON.parse(e.course.tags) : [],
-            lessonsCount: e.course._count.lessons,
-            progress: e.progress,
-            _count: undefined
-        }));
+        if (error) throw new Error(`Failed to list enrolled courses: ${error.message}`);
+
+        // For each enrollment, get the lesson count
+        const enrollmentsWithCounts = await Promise.all(
+            (enrollments || []).map(async (e: any) => {
+                const { count: lessonsCount } = await supabase
+                    .from('Lesson')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('courseId', e.course.id);
+
+                return {
+                    ...e.course,
+                    tags: e.course.tags || [],
+                    lessonsCount: lessonsCount || 0,
+                    progress: e.progress,
+                };
+            })
+        );
+
+        return enrollmentsWithCounts;
     }
 }
 

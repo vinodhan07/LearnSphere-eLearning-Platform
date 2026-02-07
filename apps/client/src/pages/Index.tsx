@@ -155,7 +155,6 @@ const Index = () => {
               )}
             </div>
           )}
-
         </div>
       </section>
 

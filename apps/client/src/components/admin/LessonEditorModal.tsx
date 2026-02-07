@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, FileIcon, ExternalLink, Video, FileText, Image as ImageIcon } from "lucide-react";
 import * as api from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 interface Attachment {
     name: string;
@@ -128,7 +129,7 @@ const LessonEditorModal = ({ isOpen, onClose, courseId, lesson, onSave }: Lesson
                 savedLesson = await api.post(`/lessons/course/${courseId}`, dataToSave);
                 toast({ title: "Success", description: "Lesson created successfully." });
             }
-            onSave(savedLesson);
+            onSave(formData);
             onClose();
         } catch (error: any) {
             console.error("Failed to save lesson:", error);

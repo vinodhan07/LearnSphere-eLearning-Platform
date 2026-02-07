@@ -21,8 +21,7 @@ export interface Course {
   enrolledCount: number;
   progress?: number;
   category?: string;
-  viewsCount?: number;
-  lessonsCount?: number;
+  views?: number;
 }
 
 export interface Lesson {

@@ -40,15 +40,17 @@ import {
     Filter,
     ArrowUpDown,
     Download,
-    Lock
+    Lock,
+    Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 import * as api from "@/lib/api";
 import BulkInviteModal from "./BulkInviteModal";
 import { formatDistanceToNow } from "date-fns";
 
 interface User {
-    id: string;
+    id?: string;
     name: string;
     email: string;
     avatar?: string;
@@ -97,19 +99,76 @@ const AttendeeModal = ({ isOpen, onClose, courseId }: AttendeeModalProps) => {
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
     useEffect(() => {
-        if (isOpen) {
-            fetchAttendees();
-            setSelectedIds(new Set());
-        }
+        if (!isOpen) return;
+
+        fetchData();
+        setSelectedIds(new Set());
+
+        // Real-time subscription for enrollments
+        const enrollChannel = supabase
+            .channel(`course-enrollments-${courseId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'Enrollment',
+                filter: `courseId=eq.${courseId}`
+            }, () => {
+                fetchData();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(enrollChannel);
+        };
     }, [isOpen, courseId]);
 
-    const fetchAttendees = async () => {
+    const fetchData = async () => {
+        setIsLoading(true);
         try {
-            setIsLoading(true);
-            const res = await api.get<{ enrollments: Enrollment[], invitations: Invitation[] }>(`/courses/${courseId}/attendees`);
-            setData(res);
+            // 1. Fetch Enrollments with User profile join
+            const { data: enrollData } = await supabase
+                .from('Enrollment')
+                .select('*, user:User(*)')
+                .eq('courseId', courseId);
+
+            if (enrollData) {
+                setData(prev => ({
+                    ...prev,
+                    enrollments: enrollData.map((e: any) => ({
+                        id: e.id,
+                        progress: e.progress || 0,
+                        completed: e.completed || false,
+                        lastAccessed: e.lastAccessedAt || e.updatedAt,
+                        performance: e.averageQuizScore || 0,
+                        startedAt: e.createdAt,
+                        user: {
+                            id: e.userId,
+                            name: e.user?.name || "Unknown",
+                            email: e.user?.email || "No Email",
+                            avatar: e.user?.avatar
+                        }
+                    }))
+                }));
+            }
+
+            // 2. Fetch Invitations
+            const { data: inviteData } = await supabase
+                .from('CourseInvitation')
+                .select('*')
+                .eq('courseId', courseId);
+
+            if (inviteData) {
+                setData(prev => ({
+                    ...prev,
+                    invitations: inviteData.map((i: any) => ({
+                        id: i.id,
+                        user: { email: i.email, name: i.email.split('@')[0] },
+                        status: i.status
+                    }))
+                }));
+            }
         } catch (error) {
-            toast({ title: "Error", description: "Failed to load attendees", variant: "destructive" });
+            console.error("Fetch data failed:", error);
         } finally {
             setIsLoading(false);
         }
@@ -185,7 +244,7 @@ const AttendeeModal = ({ isOpen, onClose, courseId }: AttendeeModalProps) => {
                 userIds: Array.from(selectedIds)
             });
             toast({ title: "Success", description: "Bulk action completed successfully." });
-            fetchAttendees();
+            fetchData();
             setSelectedIds(new Set());
         } catch (error: any) {
             toast({ title: "Error", description: error.message || "Action failed", variant: "destructive" });
@@ -476,7 +535,7 @@ const AttendeeModal = ({ isOpen, onClose, courseId }: AttendeeModalProps) => {
                 onClose={() => setIsInviteModalOpen(false)}
                 courseId={courseId}
                 onSuccess={() => {
-                    fetchAttendees();
+                    fetchData();
                     setIsInviteModalOpen(false);
                 }}
             />
