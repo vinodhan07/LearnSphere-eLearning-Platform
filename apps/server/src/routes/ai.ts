@@ -3,7 +3,8 @@ import {
     explainLesson,
     generateSmartRetake,
     getInstructorInsights,
-    summarizeReviews
+    summarizeReviews,
+    generateQuiz
 } from '../controllers/ai.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireAnyRole } from '../middleware/rbac.js';
@@ -14,5 +15,6 @@ router.post('/explain', authenticate, explainLesson);
 router.get('/smart-retake/:lessonId', authenticate, generateSmartRetake);
 router.get('/instructor-insights', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), getInstructorInsights);
 router.get('/review-summary/:courseId', authenticate, summarizeReviews);
+router.post('/generate-quiz', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), generateQuiz);
 
 export default router;

@@ -24,6 +24,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Course } from "@/data/mockData";
+import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
+import ReviewSummaryModal from "@/components/admin/ReviewSummaryModal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,7 +46,17 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [search, setSearch] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteCourseId, setDeleteCourseId] = useState<string | null>(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [selectedCourseForReview, setSelectedCourseForReview] = useState<{ id: string, title: string } | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [insights, setInsights] = useState<{
+    hardestLesson: string;
+    mostFailedCount: number;
+    averageScoreOnMostFailed: number;
+    recommendation: string;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { toast } = useToast();
@@ -66,9 +78,19 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchInsights = async () => {
+    try {
+      const data = await api.get<any>("/ai/instructor-insights");
+      setInsights(data);
+    } catch (error) {
+      console.error("Failed to fetch insights", error);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchCourses();
+      fetchInsights();
     }
   }, [isAuthenticated]);
 
@@ -90,6 +112,25 @@ const AdminDashboard = () => {
     });
   };
 
+  const handleDeleteCourse = async (id: string) => {
+    setDeleteCourseId(id);
+  };
+
+  const confirmDeleteCourse = async () => {
+    if (!deleteCourseId) return;
+    try {
+      setIsDeleting(true);
+      await api.del(`/courses/${deleteCourseId}`);
+      setCourses(courses.filter(c => c.id !== deleteCourseId));
+      toast({ title: "Course Deleted", description: "The course has been permanently removed." });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete course", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+      setDeleteCourseId(null);
+    }
+  };
+
   const CourseActions = ({ course }: { course: Course }) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -108,11 +149,15 @@ const AdminDashboard = () => {
           <Eye className="h-3.5 w-3.5" /> Preview
         </DropdownMenuItem>
         <DropdownMenuItem className="gap-2" onClick={() => {
-          toast({ title: "AI Review Summary", description: "This course is highly rated! Students love the practical examples and the AI explanations." });
+          setSelectedCourseForReview({ id: course.id, title: course.title });
+          setIsReviewModalOpen(true);
         }}>
           <MessageSquare className="h-3.5 w-3.5" /> AI Review Summary
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 text-red-400 focus:bg-red-500/10 focus:text-red-400">
+        <DropdownMenuItem
+          className="gap-2 text-red-400 focus:bg-red-500/10 focus:text-red-400"
+          onClick={() => handleDeleteCourse(course.id)}
+        >
           <Trash2 className="h-3.5 w-3.5" /> Delete
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -151,20 +196,28 @@ const AdminDashboard = () => {
                 <HelpCircle className="h-24 w-24 text-orange-500" />
               </div>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Hardest Lesson</p>
-              <h3 className="text-xl font-bold text-foreground mb-2">Advanced State Patterns</h3>
-              <p className="text-sm text-muted-foreground line-clamp-2">Students are spending 45% more time here than average.</p>
+              <h3 className="text-xl font-bold text-foreground mb-2">{insights?.hardestLesson || "Loading..."}</h3>
+              <p className="text-sm text-muted-foreground line-clamp-2">
+                {insights?.mostFailedCount ? `Failing rate is high: ${insights.mostFailedCount} students failed their last attempt.` : "No significant struggles detected yet."}
+              </p>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 relative overflow-hidden group">
               <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
                 <AlertCircle className="h-24 w-24 text-orange-500" />
               </div>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Most Failed Quiz</p>
-              <h3 className="text-xl font-bold text-foreground mb-2">React Foundations</h3>
-              <p className="text-sm text-muted-foreground">12 students retook this quiz more than twice.</p>
+              <h3 className="text-xl font-bold text-foreground mb-2">
+                {insights?.hardestLesson !== "N/A" ? insights?.hardestLesson : "No Data"}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {insights?.averageScoreOnMostFailed ? `Average score is ${Math.round(insights.averageScoreOnMostFailed)}%.` : "Keep track of upcoming quiz results."}
+              </p>
             </div>
             <div className="bg-gradient-to-br from-orange-500/5 to-amber-500/5 border border-orange-500/10 rounded-2xl p-6 shadow-sm">
               <p className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-1">AI Recommendation</p>
-              <p className="text-sm text-foreground/80 leading-relaxed italic">"Consider adding a practical coding exercise to Lesson 3 to improve retention of context API concepts."</p>
+              <p className="text-sm text-foreground/80 leading-relaxed italic">
+                "{insights?.recommendation || "Analyzing student performance data..."}"
+              </p>
             </div>
           </div>
         </div>
@@ -373,8 +426,24 @@ const AdminDashboard = () => {
         onOpenChange={setIsCreateModalOpen}
         onSuccess={fetchCourses}
       />
-    </div >
+
+      <DeleteConfirmationModal
+        isOpen={!!deleteCourseId}
+        onClose={() => setDeleteCourseId(null)}
+        onConfirm={confirmDeleteCourse}
+        title="Delete Course"
+        description="Are you sure you want to delete this course? All content, lessons, and student progress associated with it will be permanently lost."
+        isDeleting={isDeleting}
+      />
+
+      <ReviewSummaryModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        courseId={selectedCourseForReview?.id || ""}
+        courseTitle={selectedCourseForReview?.title || ""}
+      />
+    </div>
   );
-};
+}
 
 export default AdminDashboard;

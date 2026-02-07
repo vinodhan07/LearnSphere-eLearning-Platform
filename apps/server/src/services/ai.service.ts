@@ -10,6 +10,10 @@ export class AIService {
         return await claudeAgent.generateSmartRetake(lessonId);
     }
 
+    async getAIQuizQuestions(lessonId: string) {
+        return await claudeAgent.generateQuizQuestionsFromContent(lessonId);
+    }
+
     async getInstructorInsights() {
         const attempts = await prisma.quizAttempt.groupBy({
             by: ['lessonId'],

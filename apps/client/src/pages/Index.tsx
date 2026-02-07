@@ -6,6 +6,7 @@ import CourseCard from "@/components/courses/CourseCard";
 import Navbar from "@/components/layout/Navbar";
 import { motion } from "framer-motion";
 import heroBg from "@/assets/hero-bg.jpg";
+import { useAuth } from "@/contexts/AuthContext";
 
 const stats = [
   { icon: BookOpen, value: "150+", label: "Courses" },
@@ -16,6 +17,7 @@ const stats = [
 
 const Index = () => {
   const featuredCourses = mockCourses.filter((c) => c.status === "published").slice(0, 3);
+  const { hasMinimumRole } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,14 +55,16 @@ const Index = () => {
                   <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
-              <Link to="/admin">
-                <Button
-                  size="lg"
-                  className="bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 font-semibold text-base"
-                >
-                  Instructor Portal
-                </Button>
-              </Link>
+              {hasMinimumRole("INSTRUCTOR") && (
+                <Link to="/admin">
+                  <Button
+                    size="lg"
+                    className="bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 font-semibold text-base"
+                  >
+                    Instructor Portal
+                  </Button>
+                </Link>
+              )}
             </div>
           </motion.div>
         </div>

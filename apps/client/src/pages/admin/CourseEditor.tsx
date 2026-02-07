@@ -22,7 +22,8 @@ import {
     HelpCircle,
     X,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,7 @@ import * as api from "@/lib/api";
 import LessonEditorModal from "@/components/admin/LessonEditorModal";
 import AttendeeModal from "@/components/admin/AttendeeModal";
 import ContactAttendeeModal from "@/components/admin/ContactAttendeeModal";
+import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface QuizQuestion {
@@ -97,6 +99,22 @@ const CourseEditor = () => {
     const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
     const [isAttendeeModalOpen, setIsAttendeeModalOpen] = useState(false);
     const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+
+    // Deletion confirmation state
+    const [deleteModalConfig, setDeleteModalConfig] = useState<{
+        isOpen: boolean;
+        type: 'lesson' | 'question' | null;
+        itemId: string;
+        parentId?: string; // for questions (lessonId)
+        title: string;
+        description: string;
+    }>({
+        isOpen: false,
+        type: null,
+        itemId: '',
+        title: '',
+        description: ''
+    });
 
     // Quiz management states
     const [quizQuestions, setQuizQuestions] = useState<Record<string, any[]>>({});
@@ -186,13 +204,27 @@ const CourseEditor = () => {
     };
 
     const handleDeleteLesson = async (lessonId: string) => {
-        if (!confirm("Are you sure you want to delete this lesson?")) return;
+        setDeleteModalConfig({
+            isOpen: true,
+            type: 'lesson',
+            itemId: lessonId,
+            title: "Delete Lesson",
+            description: "Are you sure you want to delete this lesson? This action cannot be undone and all lesson content will be permanently removed."
+        });
+    };
+
+    const confirmDeleteLesson = async () => {
+        const lessonId = deleteModalConfig.itemId;
         try {
+            setIsSaving(true);
             await api.del(`/lessons/${lessonId}`);
             setLessons(lessons.filter(l => l.id !== lessonId));
-            toast({ title: "Success", description: "Lesson deleted" });
+            toast({ title: "Success", description: "Lesson deleted successfully" });
         } catch (error) {
             toast({ title: "Error", description: "Failed to delete lesson", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+            setDeleteModalConfig(prev => ({ ...prev, isOpen: false }));
         }
     };
 
@@ -229,12 +261,36 @@ const CourseEditor = () => {
         }
     };
 
-    const handleUpdateQuestion = async (lessonId: string, questionId: string, data: any) => {
+    const handleAIGenerateQuiz = async (quizId: string) => {
+        const sourceLesson = lessons.find(l => l.type !== 'quiz');
+        if (!sourceLesson) {
+            toast({ title: "No Source Content", description: "Add a content lesson first so AI has something to reference.", variant: "destructive" });
+            return;
+        }
+
+        try {
+            toast({ title: "AI Generation Started", description: "Generating questions from your lesson content..." });
+            await api.post('/ai/generate-quiz', { lessonId: sourceLesson.id, quizId });
+
+            // Refresh questions
+            const updatedQuestions = await api.get<any[]>(`/quizzes/lessons/${quizId}/questions`);
+            setQuizQuestions({ ...quizQuestions, [quizId]: updatedQuestions });
+
+            toast({ title: "Success", description: "AI generated 3 new questions based on your course content." });
+            if (!expandedQuizzes.has(quizId)) {
+                toggleQuizExpansion(quizId);
+            }
+        } catch (error) {
+            toast({ title: "Error", description: "Failed to generate AI questions", variant: "destructive" });
+        }
+    };
+
+    const handleUpdateQuestion = async (quizId: string, questionId: string, data: any) => {
         try {
             await api.put(`/quizzes/questions/${questionId}`, data);
             setQuizQuestions(prev => ({
                 ...prev,
-                [lessonId]: prev[lessonId].map(q => q.id === questionId ? { ...q, ...data } : q)
+                [quizId]: prev[quizId].map(q => q.id === questionId ? { ...q, ...data } : q)
             }));
             toast({ title: "Updated", description: "Question saved" });
         } catch (error) {
@@ -243,16 +299,32 @@ const CourseEditor = () => {
     };
 
     const handleDeleteQuestion = async (lessonId: string, questionId: string) => {
-        if (!confirm("Delete this question?")) return;
+        setDeleteModalConfig({
+            isOpen: true,
+            type: 'question',
+            itemId: questionId,
+            parentId: lessonId,
+            title: "Delete Question",
+            description: "Delete this question? This will permanently remove it from the quiz."
+        });
+    };
+
+    const confirmDeleteQuestion = async () => {
+        const questionId = deleteModalConfig.itemId;
+        const lessonId = deleteModalConfig.parentId!;
         try {
+            setIsSaving(true);
             await api.del(`/quizzes/questions/${questionId}`);
             setQuizQuestions(prev => ({
                 ...prev,
                 [lessonId]: prev[lessonId].filter(q => q.id !== questionId)
             }));
-            toast({ title: "Deleted", description: "Question removed" });
+            toast({ title: "Deleted", description: "Question removed successfully" });
         } catch (error) {
             toast({ title: "Error", description: "Failed to delete question", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+            setDeleteModalConfig(prev => ({ ...prev, isOpen: false }));
         }
     };
 
@@ -585,6 +657,17 @@ const CourseEditor = () => {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-8 gap-2 border-primary/30 text-primary hover:bg-primary/5 font-bold"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleAIGenerateQuiz(quiz.id);
+                                                        }}
+                                                    >
+                                                        <Sparkles className="h-3.5 w-3.5" /> AI Generate
+                                                    </Button>
                                                     <Button size="sm" variant="ghost" className="text-primary font-bold h-8 px-3" onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleAddQuestion(quiz.id);
@@ -756,6 +839,15 @@ const CourseEditor = () => {
                 isOpen={isContactModalOpen}
                 onClose={() => setIsContactModalOpen(false)}
                 courseId={id!}
+            />
+
+            <DeleteConfirmationModal
+                isOpen={deleteModalConfig.isOpen}
+                onClose={() => setDeleteModalConfig(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={deleteModalConfig.type === 'lesson' ? confirmDeleteLesson : confirmDeleteQuestion}
+                title={deleteModalConfig.title}
+                description={deleteModalConfig.description}
+                isDeleting={isSaving}
             />
         </div>
     );

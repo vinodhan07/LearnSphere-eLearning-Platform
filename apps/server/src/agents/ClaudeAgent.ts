@@ -48,6 +48,38 @@ export class ClaudeAgent {
     }
 
     /**
+     * Generates quiz questions based on lesson content
+     */
+    async generateQuizQuestionsFromContent(lessonId: string) {
+        const lesson = await prisma.lesson.findUnique({
+            where: { id: lessonId },
+        });
+
+        if (!lesson) throw new Error('Lesson not found');
+
+        // Simulation: In a real app, we'd pass lesson.content to Claude
+        const contentPreview = lesson.content?.substring(0, 50) || "the material";
+
+        return [
+            {
+                question: `Based on the discussion of ${contentPreview}..., what is the most critical factor?`,
+                options: ["Option Alpha", "Option Beta", "Option Gamma", "Option Delta"],
+                correctIndex: 1
+            },
+            {
+                question: `The lesson mentions ${lesson.title}. How does this relate to the primary objective?`,
+                options: ["Relation 1", "Relation 2", "Relation 3", "Relation 4"],
+                correctIndex: 0
+            },
+            {
+                question: `Which concept from "${lesson.title}" is most likely to be applied in a professional setting?`,
+                options: ["Concept A", "Concept B", "Concept C", "Concept D"],
+                correctIndex: 2
+            }
+        ];
+    }
+
+    /**
      * Summarizes student reviews
      */
     async summarizeReviews(courseId: string) {
