@@ -11,6 +11,7 @@ import {
     inviteAttendee,
     contactAttendees,
     listMyCourses,
+    handleBulkAction,
 } from '../controllers/courses.js';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.js';
 import { requireAnyRole } from '../middleware/rbac.js';
@@ -43,6 +44,8 @@ router.put('/:id', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), updateCo
 router.delete('/:id', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), deleteCourse);
 router.get('/:id/attendees', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), getCourseAttendees);
 router.post('/:id/invite', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), inviteAttendee);
+router.post('/:id/invite', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), inviteAttendee);
 router.post('/:id/contact', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), contactAttendees);
+router.post('/:id/bulk-action', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), handleBulkAction);
 
 export default router;

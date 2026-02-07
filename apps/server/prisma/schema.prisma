@@ -90,7 +90,7 @@ model Lesson {
   title       String
   description String?
   content     String?  // Could be video URL, markdown, etc.
-  duration    Int      @default(0) // Duration in minutes
+  duration    Float    @default(0) // Duration in minutes
   type        String   @default("video") // video, document, quiz, etc.
   order       Int      @default(0)
   

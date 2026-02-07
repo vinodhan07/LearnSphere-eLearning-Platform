@@ -7,9 +7,9 @@ const lessonSchema = z.object({
     title: z.string().min(1, 'Title is required').max(200),
     description: z.string().optional(),
     content: z.string().optional(),
-    duration: z.number().int().nonnegative().default(0),
+    duration: z.coerce.number().nonnegative().default(0),
     type: z.enum(['video', 'document', 'image', 'quiz']).default('video'),
-    order: z.number().int().default(0),
+    order: z.coerce.number().int().default(0),
     allowDownload: z.boolean().optional().default(true),
     attachments: z.string().optional().nullable(),
 });

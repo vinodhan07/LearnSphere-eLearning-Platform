@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, BookOpen, Clock, Users, Star, Play, FileText, Image as ImageIcon, HelpCircle, CheckCircle2, Circle, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { mockCourses, mockLessons, mockReviews } from "@/data/mockData";
+import { getCourse } from "@/lib/api";
+import { Course, Lesson } from "@/types/course";
 import Navbar from "@/components/layout/Navbar";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const typeIcons: Record<string, React.ElementType> = {
   video: Play,
@@ -20,22 +22,68 @@ const CourseDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const course = mockCourses.find((c) => c.id === id);
-  const lessons = course ? mockLessons.filter((l) => l.courseId === course.id) : [];
-  const reviews = course ? mockReviews.filter((r) => r.courseId === course.id) : [];
-  const completedCount = lessons.filter((l) => l.completed).length;
-  const avgRating = reviews.length
-    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-    : "0";
+  const { toast } = useToast();
+  const [course, setCourse] = useState<Course | null>(null);
+  const [lessons, setLessons] = useState<Lesson[]>([]); // Need to fetch lessons separately or include in course
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Check if course is visible to guests
-  const isPublic = course?.visibility === "EVERYONE";
+  useEffect(() => {
+    const fetchCourse = async () => {
+      if (!id) return;
+      try {
+        const data = await getCourse(id);
+        setCourse(data);
+        // For now mimicking lessons if not in payload, but ideally should be in payload or separate call
+        // The current getCourse service includes neither, need to check if we can get lessons
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load course details.",
+          variant: "destructive",
+        });
+        navigate("/courses");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchCourse();
+  }, [id, navigate, toast]);
+
+  if (isLoading) return <div className="min-h-screen bg-background flex items-center justify-center">Loading...</div>;
+  if (!course) return null;
+
+  // Mock data for missing parts until backend updates
+  const reviews: any[] = [];
+  const completedCount = 0;
+  const avgRating = "0";
 
   const handleStartLearning = () => {
-    if (isAuthenticated) {
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign in Required",
+        description: "Please sign in to start learning.",
+      });
+      navigate("/login", { state: { from: `/lesson/${course.id}` } });
+      return;
+    }
+
+    if (course.canStart) {
       navigate(`/lesson/${course.id}`);
     } else {
-      navigate("/login", { state: { from: `/lesson/${course.id}` } });
+      if (course.accessRule === 'PAID') {
+        toast({
+          title: "Enrollment Required",
+          description: `This is a premium course. Price: $${course.price}`,
+          variant: "default"
+        });
+        // Future: Open Payment Modal
+      } else if (course.accessRule === 'INVITE') {
+        toast({
+          title: "Restricted Access",
+          description: "You need an invitation to join this course.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -63,18 +111,18 @@ const CourseDetail = () => {
             <h1 className="font-heading text-3xl lg:text-4xl font-bold text-foreground">{course.title}</h1>
             <p className="text-muted-foreground leading-relaxed">{course.description}</p>
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1.5"><Clock className="h-4 w-4" />{course.duration}</span>
-              <span className="flex items-center gap-1.5"><BookOpen className="h-4 w-4" />{course.totalLessons} lessons</span>
-              <span className="flex items-center gap-1.5"><Users className="h-4 w-4" />{course.enrolledCount} enrolled</span>
+              <span className="flex items-center gap-1.5"><Clock className="h-4 w-4" />{course.totalDuration || "0m"}</span>
+              <span className="flex items-center gap-1.5"><BookOpen className="h-4 w-4" />{course.lessonsCount || 0} lessons</span>
+              <span className="flex items-center gap-1.5"><Users className="h-4 w-4" />{course.enrolledCount || 0} enrolled</span>
               <span className="flex items-center gap-1.5">
                 <Star className="h-4 w-4 fill-accent text-accent" />
                 {avgRating} ({reviews.length} reviews)
               </span>
             </div>
             <div className="flex items-center gap-3 pt-2">
-              <img src={course.instructorAvatar} alt={course.instructor} className="h-10 w-10 rounded-full object-cover" />
+              <img src={course.responsibleAdmin?.avatar} alt={course.responsibleAdmin?.name} className="h-10 w-10 rounded-full object-cover" />
               <div>
-                <p className="text-sm font-medium text-foreground">{course.instructor}</p>
+                <p className="text-sm font-medium text-foreground">{course.responsibleAdmin?.name}</p>
                 <p className="text-xs text-muted-foreground">Course Instructor</p>
               </div>
             </div>
@@ -86,9 +134,9 @@ const CourseDetail = () => {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Progress</span>
-                <span className="font-semibold text-foreground">{course.progress}%</span>
+                <span className="font-semibold text-foreground">{course.progress || 0}%</span>
               </div>
-              <Progress value={course.progress} className="h-2.5" />
+              <Progress value={course.progress || 0} className="h-2.5" />
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>{completedCount} completed</span>
                 <span>{lessons.length - completedCount} remaining</span>
@@ -101,8 +149,8 @@ const CourseDetail = () => {
             >
               {!isAuthenticated && <LogIn className="h-4 w-4 mr-2" />}
               {isAuthenticated
-                ? (course.progress > 0 ? "Continue Learning" : "Start Course")
-                : "Sign in to Start"
+                ? ((course.progress || 0) > 0 ? "Continue Learning" : "Start Learning Now")
+                : "Sign in to Start Learning"
               }
             </Button>
           </div>

@@ -35,8 +35,8 @@ const App = () => (
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Index />} />
-            <Route path="/explore" element={<CourseCatalog />} />
-            <Route path="/learn/:id" element={<CourseDetail />} />
+            <Route path="/courses" element={<CourseCatalog />} />
+            <Route path="/courses/:id" element={<CourseDetail />} />
 
             {/* Auth routes (guest only) */}
             <Route path="/login" element={
@@ -73,11 +73,11 @@ const App = () => (
                 <AdminLayout />
               </ProtectedRoute>
             }>
-              <Route path="/courses" element={<AdminDashboard />} />
-              <Route path="/courses/:id" element={<CourseEditor />} />
-              <Route path="/quiz/:courseId" element={<QuizPlayer />} />
-              <Route path="/reports" element={<AdminReporting />} />
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/course/:id" element={<CourseEditor />} />
+              <Route path="/admin/quiz/:courseId" element={<QuizPlayer />} />
+              <Route path="/admin/reports" element={<AdminReporting />} />
+              {/* Legacy/Redirects if needed, but keeping clean for now */}
             </Route>
 
             {/* 404 */}

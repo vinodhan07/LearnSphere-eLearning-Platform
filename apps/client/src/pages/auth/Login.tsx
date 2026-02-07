@@ -106,23 +106,23 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50/50 p-4">
             <div className="w-full max-w-md">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <Link to="/" className="inline-flex items-center gap-2 text-white">
-                        <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                    <Link to="/" className="inline-flex items-center gap-2 text-foreground">
+                        <div className="p-2 bg-orange-500 rounded-xl text-white shadow-lg shadow-orange-500/20">
                             <BookOpen className="h-8 w-8" />
                         </div>
-                        <span className="text-2xl font-bold">LearnSphere</span>
+                        <span className="text-2xl font-bold tracking-tight">LearnSphere</span>
                     </Link>
                 </div>
 
                 {/* Card */}
-                <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20">
+                <div className="bg-white rounded-2xl p-8 shadow-xl border border-border">
                     <div className="text-center mb-6">
-                        <h1 className="text-2xl font-bold text-white">Welcome back</h1>
-                        <p className="text-gray-300 mt-1">Sign in to continue learning</p>
+                        <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
+                        <p className="text-muted-foreground mt-1">Sign in to continue learning</p>
                     </div>
 
                     {/* Google Sign-In Button */}
@@ -131,10 +131,10 @@ export default function Login() {
                             <div id="google-signin-button" className="flex justify-center"></div>
                             <div className="relative my-6">
                                 <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-white/20"></div>
+                                    <div className="w-full border-t border-border"></div>
                                 </div>
                                 <div className="relative flex justify-center text-sm">
-                                    <span className="px-4 bg-transparent text-gray-400">or continue with email</span>
+                                    <span className="px-4 bg-white text-muted-foreground">or continue with email</span>
                                 </div>
                             </div>
                         </div>
@@ -142,7 +142,7 @@ export default function Login() {
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="space-y-2">
-                            <Label htmlFor="email" className="text-gray-200">Email</Label>
+                            <Label htmlFor="email">Email</Label>
                             <Input
                                 id="email"
                                 type="email"
@@ -150,14 +150,14 @@ export default function Login() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
-                                className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400"
+                                className="h-11"
                             />
                         </div>
 
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <Label htmlFor="password" className="text-gray-200">Password</Label>
-                                <Link to="/forgot-password" className="text-sm text-purple-400 hover:text-purple-300">
+                                <Label htmlFor="password">Password</Label>
+                                <Link to="/forgot-password" className="text-sm text-orange-600 hover:text-orange-700 font-medium">
                                     Forgot password?
                                 </Link>
                             </div>
@@ -169,12 +169,12 @@ export default function Login() {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 pr-10"
+                                    className="h-11 pr-10"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                 >
                                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </button>
@@ -183,54 +183,54 @@ export default function Login() {
 
                         <Button
                             type="submit"
-                            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold py-5"
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-6 text-lg shadow-lg shadow-orange-500/20"
                             disabled={isSubmitting}
                         >
                             {isSubmitting ? (
                                 <div className="flex items-center gap-2">
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                                     Signing in...
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2">
-                                    <LogIn className="h-4 w-4" />
+                                    <LogIn className="h-5 w-5" />
                                     Sign in
                                 </div>
                             )}
                         </Button>
                     </form>
 
-                    <div className="mt-6 text-center">
-                        <p className="text-gray-300">
+                    <div className="mt-8 text-center">
+                        <p className="text-muted-foreground">
                             Don't have an account?{' '}
-                            <Link to="/register" className="text-purple-400 hover:text-purple-300 font-medium">
+                            <Link to="/register" className="text-orange-600 hover:text-orange-700 font-bold hover:underline">
                                 Sign up
                             </Link>
                         </p>
                     </div>
 
                     {/* Demo credentials */}
-                    <div className="mt-6 pt-6 border-t border-white/10">
-                        <p className="text-xs text-gray-400 text-center mb-3">Demo accounts:</p>
+                    <div className="mt-8 pt-6 border-t border-border">
+                        <p className="text-xs text-muted-foreground text-center mb-3">Demo accounts:</p>
                         <div className="grid grid-cols-3 gap-2 text-xs">
                             <button
                                 type="button"
                                 onClick={() => { setEmail('admin.learnsphere@gmail.com'); setPassword('admin123'); }}
-                                className="px-2 py-1.5 rounded bg-white/5 hover:bg-white/10 text-gray-300 transition-colors"
+                                className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
                             >
                                 Admin
                             </button>
                             <button
                                 type="button"
                                 onClick={() => { setEmail('instructor.learnsphere@gmail.com'); setPassword('instructor123'); }}
-                                className="px-2 py-1.5 rounded bg-white/5 hover:bg-white/10 text-gray-300 transition-colors"
+                                className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
                             >
                                 Instructor
                             </button>
                             <button
                                 type="button"
                                 onClick={() => { setEmail('learner.learnsphere@gmail.com'); setPassword('learner123'); }}
-                                className="px-2 py-1.5 rounded bg-white/5 hover:bg-white/10 text-gray-300 transition-colors"
+                                className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
                             >
                                 Learner
                             </button>

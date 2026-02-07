@@ -1,21 +1,46 @@
-import { useState } from "react";
-import { Search } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { mockCourses } from "@/data/mockData";
+import { getCourses } from "@/lib/api";
+import { Course } from "@/types/course";
 import CourseCard from "@/components/courses/CourseCard";
 import Navbar from "@/components/layout/Navbar";
+import { useToast } from "@/hooks/use-toast";
 
 const categories = ["All", "Development", "Design", "Data Science", "Mobile", "Cloud", "Security"];
 
 const CourseCatalog = () => {
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const { toast } = useToast();
 
-  const published = mockCourses.filter((c) => c.status === "published");
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const data = await getCourses();
+        setCourses(data);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load courses. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCourses();
+  }, [toast]);
+
+  // Backend already filters published courses for guests, but valid to be safe
+  const published = courses.filter((c) => c.published);
   const filtered = published.filter((c) => {
     const matchesSearch = c.title.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = activeCategory === "All" || c.category === activeCategory;
+    const matchesCategory = activeCategory === "All" || (c.tags && c.tags.includes(activeCategory));
     return matchesSearch && matchesCategory;
   });
 
@@ -45,11 +70,10 @@ const CourseCatalog = () => {
               <Badge
                 key={cat}
                 variant={activeCategory === cat ? "default" : "outline"}
-                className={`cursor-pointer transition-colors ${
-                  activeCategory === cat
+                className={`cursor-pointer transition-colors ${activeCategory === cat
                     ? "bg-primary text-primary-foreground"
                     : "hover:bg-muted"
-                }`}
+                  }`}
                 onClick={() => setActiveCategory(cat)}
               >
                 {cat}
@@ -58,14 +82,19 @@ const CourseCatalog = () => {
           </div>
         </div>
 
-        {/* Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((course, i) => (
-            <CourseCard key={course.id} course={course} index={i} />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filtered.map((course, i) => (
+              <CourseCard key={course.id} course={course} index={i} />
+            ))}
+          </div>
+        )}
 
-        {filtered.length === 0 && (
+        {!isLoading && filtered.length === 0 && (
           <div className="text-center py-20 text-muted-foreground">
             <p className="text-lg">No courses found matching your criteria.</p>
           </div>

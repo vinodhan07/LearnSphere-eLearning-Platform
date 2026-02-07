@@ -139,7 +139,7 @@ const AdminDashboard = () => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem className="gap-2" onClick={() => navigate(`/courses/${course.id}`)}>
+        <DropdownMenuItem className="gap-2" onClick={() => navigate(`/admin/course/${course.id}`)}>
           <Pencil className="h-3.5 w-3.5" /> Edit
         </DropdownMenuItem>
         <DropdownMenuItem className="gap-2" onClick={() => handleShare(course)}>
@@ -161,7 +161,7 @@ const AdminDashboard = () => {
           <Trash2 className="h-3.5 w-3.5" /> Delete
         </DropdownMenuItem>
       </DropdownMenuContent>
-    </DropdownMenu>
+    </DropdownMenu >
   );
 
   return (

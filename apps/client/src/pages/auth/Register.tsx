@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,10 @@ export default function Register() {
 
     const { register, googleLogin } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const { toast } = useToast();
+
+    const from = (location.state as { from?: string })?.from || '/';
 
     // Load Google Identity Services script
     useEffect(() => {
@@ -56,7 +59,7 @@ export default function Register() {
         const buttonDiv = document.getElementById('google-signup-button');
         if (buttonDiv) {
             google.accounts.id.renderButton(buttonDiv, {
-                theme: 'filled_black',
+                theme: 'filled_blue',
                 size: 'large',
                 width: 320,
                 text: 'signup_with',
@@ -72,7 +75,7 @@ export default function Register() {
                 title: 'Account created!',
                 description: 'Welcome to LearnSphere. Start exploring courses!',
             });
-            navigate('/', { replace: true });
+            navigate(from, { replace: true });
         } catch (error) {
             toast({
                 title: 'Google sign-up failed',
@@ -113,7 +116,7 @@ export default function Register() {
                 title: 'Account created!',
                 description: 'Welcome to LearnSphere. Start exploring courses!',
             });
-            navigate('/', { replace: true });
+            navigate(from, { replace: true });
         } catch (error) {
             toast({
                 title: 'Registration failed',
@@ -126,23 +129,23 @@ export default function Register() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50/50 p-4">
             <div className="w-full max-w-md">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <Link to="/" className="inline-flex items-center gap-2 text-white">
-                        <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                    <Link to="/" className="inline-flex items-center gap-2 text-foreground">
+                        <div className="p-2 bg-orange-500 rounded-xl text-white shadow-lg shadow-orange-500/20">
                             <BookOpen className="h-8 w-8" />
                         </div>
-                        <span className="text-2xl font-bold">LearnSphere</span>
+                        <span className="text-2xl font-bold tracking-tight">LearnSphere</span>
                     </Link>
                 </div>
 
                 {/* Card */}
-                <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/20">
+                <div className="bg-white rounded-2xl p-8 shadow-xl border border-border">
                     <div className="text-center mb-6">
-                        <h1 className="text-2xl font-bold text-white">Create your account</h1>
-                        <p className="text-gray-300 mt-1">Join thousands of learners today</p>
+                        <h1 className="text-2xl font-bold text-foreground">Create your account</h1>
+                        <p className="text-muted-foreground mt-1">Join thousands of learners today</p>
                     </div>
 
                     {/* Google Sign-Up Button */}
@@ -151,10 +154,10 @@ export default function Register() {
                             <div id="google-signup-button" className="flex justify-center"></div>
                             <div className="relative my-6">
                                 <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-white/20"></div>
+                                    <div className="w-full border-t border-border"></div>
                                 </div>
                                 <div className="relative flex justify-center text-sm">
-                                    <span className="px-4 bg-transparent text-gray-400">or register with email</span>
+                                    <span className="px-4 bg-white text-muted-foreground">or register with email</span>
                                 </div>
                             </div>
                         </div>
@@ -162,7 +165,7 @@ export default function Register() {
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="space-y-2">
-                            <Label htmlFor="name" className="text-gray-200">Full Name</Label>
+                            <Label htmlFor="name">Full Name</Label>
                             <Input
                                 id="name"
                                 type="text"
@@ -170,12 +173,12 @@ export default function Register() {
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 required
-                                className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400"
+                                className="h-11"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="email" className="text-gray-200">Email</Label>
+                            <Label htmlFor="email">Email</Label>
                             <Input
                                 id="email"
                                 type="email"
@@ -183,12 +186,12 @@ export default function Register() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
-                                className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400"
+                                className="h-11"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="password" className="text-gray-200">Password</Label>
+                            <Label htmlFor="password">Password</Label>
                             <div className="relative">
                                 <Input
                                     id="password"
@@ -197,12 +200,12 @@ export default function Register() {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 pr-10"
+                                    className="h-11 pr-10"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                 >
                                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </button>
@@ -210,7 +213,7 @@ export default function Register() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="confirmPassword" className="text-gray-200">Confirm Password</Label>
+                            <Label htmlFor="confirmPassword">Confirm Password</Label>
                             <Input
                                 id="confirmPassword"
                                 type="password"
@@ -218,12 +221,12 @@ export default function Register() {
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 required
-                                className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400"
+                                className="h-11"
                             />
                         </div>
 
                         <div className="space-y-3">
-                            <Label className="text-gray-200">I want to join as</Label>
+                            <Label>I want to join as</Label>
                             <RadioGroup
                                 value={role}
                                 onValueChange={(value) => setRole(value as 'LEARNER' | 'INSTRUCTOR')}
@@ -231,27 +234,27 @@ export default function Register() {
                             >
                                 <Label
                                     htmlFor="role-learner"
-                                    className={`flex flex-col items-center gap-2 p-4 rounded-xl border cursor-pointer transition-all ${role === 'LEARNER'
-                                            ? 'border-purple-400 bg-purple-500/20'
-                                            : 'border-white/20 bg-white/5 hover:bg-white/10'
+                                    className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all ${role === 'LEARNER'
+                                        ? 'border-orange-500 bg-orange-50 text-orange-600'
+                                        : 'border-border hover:border-orange-200 hover:bg-orange-50/50'
                                         }`}
                                 >
                                     <RadioGroupItem value="LEARNER" id="role-learner" className="sr-only" />
-                                    <GraduationCap className={`h-6 w-6 ${role === 'LEARNER' ? 'text-purple-400' : 'text-gray-400'}`} />
-                                    <span className={`text-sm font-medium ${role === 'LEARNER' ? 'text-white' : 'text-gray-300'}`}>
+                                    <GraduationCap className={`h-6 w-6 ${role === 'LEARNER' ? 'text-orange-600' : 'text-muted-foreground'}`} />
+                                    <span className={`text-sm font-bold ${role === 'LEARNER' ? 'text-orange-700' : 'text-muted-foreground'}`}>
                                         Learner
                                     </span>
                                 </Label>
                                 <Label
                                     htmlFor="role-instructor"
-                                    className={`flex flex-col items-center gap-2 p-4 rounded-xl border cursor-pointer transition-all ${role === 'INSTRUCTOR'
-                                            ? 'border-purple-400 bg-purple-500/20'
-                                            : 'border-white/20 bg-white/5 hover:bg-white/10'
+                                    className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all ${role === 'INSTRUCTOR'
+                                        ? 'border-orange-500 bg-orange-50 text-orange-600'
+                                        : 'border-border hover:border-orange-200 hover:bg-orange-50/50'
                                         }`}
                                 >
                                     <RadioGroupItem value="INSTRUCTOR" id="role-instructor" className="sr-only" />
-                                    <Users className={`h-6 w-6 ${role === 'INSTRUCTOR' ? 'text-purple-400' : 'text-gray-400'}`} />
-                                    <span className={`text-sm font-medium ${role === 'INSTRUCTOR' ? 'text-white' : 'text-gray-300'}`}>
+                                    <Users className={`h-6 w-6 ${role === 'INSTRUCTOR' ? 'text-orange-600' : 'text-muted-foreground'}`} />
+                                    <span className={`text-sm font-bold ${role === 'INSTRUCTOR' ? 'text-orange-700' : 'text-muted-foreground'}`}>
                                         Instructor
                                     </span>
                                 </Label>
@@ -260,27 +263,27 @@ export default function Register() {
 
                         <Button
                             type="submit"
-                            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold py-5"
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-6 text-lg shadow-lg shadow-orange-500/20"
                             disabled={isSubmitting}
                         >
                             {isSubmitting ? (
                                 <div className="flex items-center gap-2">
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                                     Creating account...
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2">
-                                    <UserPlus className="h-4 w-4" />
+                                    <UserPlus className="h-5 w-5" />
                                     Create account
                                 </div>
                             )}
                         </Button>
                     </form>
 
-                    <div className="mt-6 text-center">
-                        <p className="text-gray-300">
+                    <div className="mt-8 text-center">
+                        <p className="text-muted-foreground">
                             Already have an account?{' '}
-                            <Link to="/login" className="text-purple-400 hover:text-purple-300 font-medium">
+                            <Link to="/login" className="text-orange-600 hover:text-orange-700 font-bold hover:underline">
                                 Sign in
                             </Link>
                         </p>
