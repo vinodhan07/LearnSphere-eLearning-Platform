@@ -39,13 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .maybeSingle();
 
             if (error) {
+                // Suppress AbortError as it's usually just navigation/unmount
+                if (error.message?.includes('aborted')) return null;
                 console.error('[AuthContext] Error fetching user profile:', error.message);
                 return null;
             }
 
             if (!data && uid) {
                 console.warn('[AuthContext] Profile missing for user, attempting fallback creation...');
-                // Fallback: Create profile if trigger failed
                 const { data: { user: authUser } } = await supabase.auth.getUser();
                 if (authUser) {
                     const { data: newProfile, error: createError } = await supabase
@@ -62,18 +63,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         .select()
                         .maybeSingle();
 
-                    if (!createError) {
-                        console.log('[AuthContext] Fallback profile created:', newProfile?.email);
-                        return newProfile as User;
+                    if (!createError) return newProfile as User;
+                    if (!createError.message?.includes('aborted')) {
+                        console.error('[AuthContext] Fallback profile creation failed:', createError.message);
                     }
-                    console.error('[AuthContext] Fallback profile creation failed:', createError.message);
                 }
             }
-
-            console.log('[AuthContext] Profile fetched successfully:', data?.email);
             return data as User | null;
         } catch (err: any) {
-            console.warn('[AuthContext] Profile fetch failed:', err.message);
+            if (err.name !== 'AbortError') {
+                console.warn('[AuthContext] Profile fetch failed:', err.message);
+            }
             return null;
         }
     };
@@ -94,8 +94,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 } else {
                     setUser(null);
                 }
-            } catch (error) {
-                console.error('[AuthContext] Auth initialization error:', error);
+            } catch (error: any) {
+                if (error.name !== 'AbortError' && !error.message?.includes('aborted')) {
+                    console.error('[AuthContext] Auth initialization error:', error);
+                }
                 setSession(null);
                 setUser(null);
             } finally {
@@ -108,28 +110,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Listen for changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log(`[AuthContext] Auth state changed: ${event}`, !!session);
-
-            // Set session immediately so UI can react (e.g. GuestRoute redirects)
+            console.log(`[AuthContext] Auth change: ${event}`);
             setSession(session);
 
             if (session) {
-                // If we have a session, we must ensure we have a profile
-                // We keep isLoading true while fetching the profile to prevent premature redirection by ProtectedRoutes
-                setIsLoading(true);
-                try {
-                    const profile = await fetchUserProfile(session.user.id);
-                    setUser(profile);
-                } catch (error) {
-                    console.error('[AuthContext] Auth change profile fetch error:', error);
-                } finally {
-                    console.log('[AuthContext] Auth change handled, setting isLoading to false');
-                    setIsLoading(false);
-                }
+                // Only fetch profile if user ID changed or user is missing
+                const profile = await fetchUserProfile(session.user.id);
+                setUser(profile);
             } else {
                 setUser(null);
-                setIsLoading(false);
             }
+            setIsLoading(false);
         });
 
         return () => subscription.unsubscribe();

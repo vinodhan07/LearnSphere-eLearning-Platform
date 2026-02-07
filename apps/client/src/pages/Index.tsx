@@ -28,20 +28,24 @@ const Index = () => {
     // Wait for auth to finish initializing before deciding whether to fetch courses
     if (authLoading) return;
 
+    let isMounted = true;
+
     const fetchCourses = async () => {
       // Don't fetch if user is an instructor/admin to avoid unnecessary errors
-      // and match the user's specific requirement.
       if (hasMinimumRole("INSTRUCTOR")) {
-        console.log("Skipping featured courses fetch for instructor/admin");
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
         return;
       }
 
       try {
         const data = await getCourses();
+        if (!isMounted) return;
+
         const published = data.filter((c: Course) => c.published).slice(0, 3);
         setFeaturedCourses(published);
-      } catch (error) {
+      } catch (error: any) {
+        if (!isMounted || error.name === 'AbortError' || error.message?.includes('aborted')) return;
+
         console.error("Failed to fetch courses:", error);
         toast({
           title: "Error",
@@ -49,12 +53,13 @@ const Index = () => {
           variant: "destructive",
         });
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     fetchCourses();
-  }, [toast, hasMinimumRole, authLoading]);
+    return () => { isMounted = false; };
+  }, [hasMinimumRole, authLoading, toast]);
 
   return (
     <div className="min-h-screen bg-background">

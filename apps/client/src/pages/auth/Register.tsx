@@ -21,10 +21,22 @@ export default function Register() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [googleLoaded, setGoogleLoaded] = useState(false);
 
-    const { register, googleLogin } = useAuth();
+    const { register, googleLogin, user, isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const { toast } = useToast();
+
+    // Redirect authenticated users to their correct dashboard
+    useEffect(() => {
+        if (isAuthenticated && user) {
+            console.log('[Register] User authenticated, redirecting by role:', user.role);
+            if (user.role === 'ADMIN' || user.role === 'INSTRUCTOR') {
+                navigate('/instructor-dashboard', { replace: true });
+            } else {
+                navigate('/learner-dashboard', { replace: true });
+            }
+        }
+    }, [isAuthenticated, user, navigate]);
 
     const from = (location.state as { from?: string })?.from || '/';
 

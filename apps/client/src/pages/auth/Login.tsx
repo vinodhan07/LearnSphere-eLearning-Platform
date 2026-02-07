@@ -118,7 +118,9 @@ export default function Login() {
                 description: 'You have successfully logged in.',
             });
             // Navigation is now handled by useEffect above once user profile is fetched
-        } catch (error) {
+        } catch (error: any) {
+            if (error.name === 'AbortError' || error.message?.includes('aborted')) return;
+
             console.error('[Login] Error during submission:', error);
             toast({
                 title: 'Login failed',
