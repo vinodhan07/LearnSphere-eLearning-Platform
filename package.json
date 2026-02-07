@@ -1,0 +1,22 @@
+{
+    "name": "learnsphere-monorepo",
+    "private": true,
+    "type": "module",
+    "description": "LearnSphere LMS Monorepo",
+    "workspaces": [
+        "apps/*",
+        "shared"
+    ],
+    "scripts": {
+        "client": "npm run dev --prefix apps/client",
+        "server": "npm run dev --prefix apps/server",
+        "dev": "concurrently -n \"SERVER,CLIENT\" -c \"magenta,cyan\" \"npm run server\" \"npm run client\"",
+        "build": "npm run build --prefix apps/client && npm run build --prefix apps/server",
+        "db:generate": "npm run db:generate --prefix apps/server",
+        "db:push": "npm run db:push --prefix apps/server",
+        "db:seed": "npm run db:seed --prefix apps/server"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2"
+    }
+}

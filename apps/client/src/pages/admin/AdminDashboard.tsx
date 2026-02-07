@@ -1,0 +1,378 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Search,
+  Plus,
+  MoreHorizontal,
+  LayoutGrid,
+  List,
+  Eye,
+  Pencil,
+  Trash2,
+  Share2,
+  Clock,
+  BookOpen,
+  Eye as EyeIcon,
+  Loader2,
+  Sparkles,
+  HelpCircle,
+  AlertCircle,
+  MessageSquare
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import Navbar from "@/components/layout/Navbar";
+import { motion, AnimatePresence } from "framer-motion";
+import type { Course } from "@/data/mockData";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
+import * as api from "@/lib/api";
+import CreateCourseModal from "@/components/admin/CreateCourseModal";
+
+const statusColors: Record<string, string> = {
+  draft: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+  published: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+};
+
+const AdminDashboard = () => {
+  const navigate = useNavigate();
+  const [view, setView] = useState<"kanban" | "list">("kanban");
+  const [search, setSearch] = useState("");
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const { toast } = useToast();
+
+  const fetchCourses = async () => {
+    try {
+      setIsLoading(true);
+      const data = await api.get<Course[]>('/courses/admin/list');
+      setCourses(data);
+    } catch (error) {
+      toast({
+        title: "Failed to fetch courses",
+        description: "Please check your connection or try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  const filteredCourses = courses.filter((c) =>
+    c.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const grouped = {
+    draft: filteredCourses.filter((c) => !c.published),
+    published: filteredCourses.filter((c) => c.published),
+  };
+
+  const handleShare = (course: Course) => {
+    const url = `${window.location.origin}/courses/${course.id}`;
+    navigator.clipboard.writeText(url);
+    toast({
+      title: "Link copied!",
+      description: "Course link has been copied to clipboard.",
+    });
+  };
+
+  const CourseActions = ({ course }: { course: Course }) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-white/10 text-gray-400">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="bg-slate-900 border-white/10 text-white">
+        <DropdownMenuItem className="gap-2 focus:bg-white/10 focus:text-white" onClick={() => navigate(`/admin/course/${course.id}`)}>
+          <Pencil className="h-3.5 w-3.5" /> Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 focus:bg-white/10 focus:text-white" onClick={() => handleShare(course)}>
+          <Share2 className="h-3.5 w-3.5" /> Share
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 focus:bg-white/10 focus:text-white" onClick={() => window.open(`/courses/${course.id}`, '_blank')}>
+          <Eye className="h-3.5 w-3.5" /> Preview
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 focus:bg-white/10 focus:text-white" onClick={() => {
+          toast({ title: "AI Review Summary", description: "This course is highly rated! Students love the practical examples and the AI explanations." });
+        }}>
+          <MessageSquare className="h-3.5 w-3.5" /> AI Review Summary
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 text-red-400 focus:bg-red-500/10 focus:text-red-400">
+          <Trash2 className="h-3.5 w-3.5" /> Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white selection:bg-purple-500/30">
+      <Navbar />
+
+      <main className="container max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-10">
+          <div>
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+              Course Dashboard
+            </h1>
+            <p className="text-gray-400 mt-1">Manage, organize, and track your content performance</p>
+          </div>
+          <Button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/20 gap-2 h-11 px-6 font-semibold"
+          >
+            <Plus className="h-5 w-5" /> Create Course
+          </Button>
+        </div>
+
+        {/* AI Insights Section */}
+        <div className="mb-10">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="h-5 w-5 text-purple-400" />
+            <h2 className="text-xl font-bold">Instructor AI Insights</h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 relative overflow-hidden group">
+              <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <HelpCircle className="h-24 w-24 text-purple-500" />
+              </div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Hardest Lesson</p>
+              <h3 className="text-xl font-bold text-white mb-2">Advanced State Patterns</h3>
+              <p className="text-sm text-gray-400 line-clamp-2">Students are spending 45% more time here than average.</p>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 relative overflow-hidden group">
+              <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <AlertCircle className="h-24 w-24 text-pink-500" />
+              </div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Most Failed Quiz</p>
+              <h3 className="text-xl font-bold text-white mb-2">React Foundations</h3>
+              <p className="text-sm text-gray-400">12 students retook this quiz more than twice.</p>
+            </div>
+            <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-2xl p-6">
+              <p className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-1">AI Recommendation</p>
+              <p className="text-sm text-gray-300 leading-relaxed italic">"Consider adding a practical coding exercise to Lesson 3 to improve retention of context API concepts."</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Toolbar */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-8">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+            <Input
+              placeholder="Search courses by name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-11 h-11 bg-white/5 border-white/10 focus:border-purple-500/50 transition-all text-white placeholder:text-gray-500"
+            />
+          </div>
+          <div className="flex bg-white/5 rounded-xl p-1 border border-white/10 self-start sm:self-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setView("kanban")}
+              className={`gap-2 h-9 px-4 rounded-lg transition-all ${view === "kanban" ? "bg-white/10 text-white shadow-sm" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
+            >
+              <LayoutGrid className="h-4 w-4" /> Kanban
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setView("list")}
+              className={`gap-2 h-9 px-4 rounded-lg transition-all ${view === "list" ? "bg-white/10 text-white shadow-sm" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
+            >
+              <List className="h-4 w-4" /> List
+            </Button>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-24 space-y-4">
+            <Loader2 className="h-10 w-10 text-purple-500 animate-spin" />
+            <p className="text-gray-400 font-medium leading-relaxed">Loading your dashboard...</p>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            {view === "kanban" ? (
+              <motion.div
+                key="kanban"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="grid lg:grid-cols-2 gap-8"
+              >
+                {(["draft", "published"] as const).map((status) => (
+                  <div key={status} className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className={`px-3 py-1 uppercase tracking-wider text-[10px] font-bold ${statusColors[status]}`}>
+                          {status}
+                        </Badge>
+                        <span className="text-sm text-gray-500 font-medium">
+                          {grouped[status].length} {grouped[status].length === 1 ? 'Course' : 'Courses'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {grouped[status].map((course, i) => (
+                        <motion.div
+                          key={course.id}
+                          layoutId={course.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.05 }}
+                          className="group relative bg-white/5 hover:bg-white/[0.08] rounded-xl border border-white/5 p-5 transition-all duration-300 hover:border-white/10"
+                        >
+                          <div className="flex flex-col gap-4">
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-1 pr-8">
+                                <h3 className="font-bold text-base text-white group-hover:text-purple-400 transition-colors leading-tight">
+                                  {course.title}
+                                </h3>
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                  {course.tags.map((tag) => (
+                                    <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400 border border-white/5">
+                                      {tag}
+                                    </span>
+                                  ))}
+                                  {course.tags.length === 0 && (
+                                    <span className="text-[10px] text-gray-600 italic">No tags</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="absolute right-4 top-4">
+                                <CourseActions course={course} />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5 mt-auto">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Views</span>
+                                <div className="flex items-center gap-1.5 text-gray-300">
+                                  <EyeIcon className="h-3 w-3 text-purple-400" />
+                                  <span className="text-sm font-semibold">{course.viewsCount || 0}</span>
+                                </div>
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Lessons</span>
+                                <div className="flex items-center gap-1.5 text-gray-300">
+                                  <BookOpen className="h-3 w-3 text-blue-400" />
+                                  <span className="text-sm font-semibold">{course.lessonsCount || 0}</span>
+                                </div>
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Time</span>
+                                <div className="flex items-center gap-1.5 text-gray-300">
+                                  <Clock className="h-3 w-3 text-pink-400" />
+                                  <span className="text-sm font-semibold">{course.totalDuration || 0}m</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+
+                      {grouped[status].length === 0 && (
+                        <div className="py-12 px-4 border border-dashed border-white/10 rounded-xl text-center">
+                          <p className="text-sm text-gray-500">No courses in category</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </motion.div>
+            ) : (
+              <motion.div
+                key="list"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden shadow-2xl"
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-white/[0.02]">
+                        <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Course</th>
+                        <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Status</th>
+                        <th className="text-center text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Views</th>
+                        <th className="text-center text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Lessons</th>
+                        <th className="text-center text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Duration</th>
+                        <th className="text-right text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {filteredCourses.map((course) => (
+                        <tr key={course.id} className="group hover:bg-white/[0.03] transition-colors">
+                          <td className="py-4 px-6">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-white group-hover:text-purple-400 transition-colors">
+                                {course.title}
+                              </span>
+                              <div className="flex gap-2 mt-1.5">
+                                {course.tags.slice(0, 3).map((tag) => (
+                                  <span key={tag} className="text-[10px] text-gray-500">#{tag}</span>
+                                ))}
+                                {course.tags.length > 3 && (
+                                  <span className="text-[10px] text-gray-600">+{course.tags.length - 3} more</span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <Badge variant="outline" className={`px-2 py-0 text-[10px] uppercase font-bold border-0 ${course.published ? 'text-emerald-400' : 'text-gray-500'}`}>
+                              {course.published ? 'Published' : 'Draft'}
+                            </Badge>
+                          </td>
+                          <td className="py-4 px-6 text-center">
+                            <span className="text-sm font-medium text-gray-300">{course.viewsCount || 0}</span>
+                          </td>
+                          <td className="py-4 px-6 text-center">
+                            <span className="text-sm font-medium text-gray-300">{course.lessonsCount || 0}</span>
+                          </td>
+                          <td className="py-4 px-6 text-center text-sm font-medium text-gray-300">
+                            {course.totalDuration || 0} min
+                          </td>
+                          <td className="py-4 px-6 text-right">
+                            <CourseActions course={course} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {filteredCourses.length === 0 && (
+                    <div className="py-20 text-center">
+                      <p className="text-gray-500 font-medium">No courses found matching your search</p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
+      </main>
+
+      <CreateCourseModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        onSuccess={fetchCourses}
+      />
+    </div>
+  );
+};
+
+export default AdminDashboard;

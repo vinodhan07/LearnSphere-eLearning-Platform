@@ -1,0 +1,177 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String   // bcrypt hashed
+  name         String
+  role         String   @default("LEARNER") // ADMIN, INSTRUCTOR, LEARNER
+  avatar       String?
+  totalPoints  Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Refresh tokens for this user
+  refreshTokens RefreshToken[]
+  
+  // Courses where user is responsible admin
+  adminCourses  Course[] @relation("CourseAdmin")
+  
+  // Course enrollments
+  enrollments   Enrollment[]
+  
+  // Course invitations
+  invitations   CourseInvitation[]
+
+  // Progress and attempts
+  lessonProgress LessonProgress[]
+  quizAttempts   QuizAttempt[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Course {
+  id                 String   @id @default(uuid())
+  title              String
+  description        String?
+  tags               String?  // JSON array stored as string for SQLite
+  image              String?
+  
+  // Publishing
+  published          Boolean  @default(false)
+  website            String?  // Required when published
+  
+  // Visibility: EVERYONE, SIGNED_IN
+  visibility         String   @default("EVERYONE")
+  
+  // Access Rule: OPEN, INVITE, PAID
+  accessRule         String   @default("OPEN")
+  
+  // Pricing (only when accessRule = PAID)
+  price              Float?
+  currency           String   @default("USD")
+  
+  // Responsible admin
+  responsibleAdminId String
+  responsibleAdmin   User     @relation("CourseAdmin", fields: [responsibleAdminId], references: [id])
+  
+  // Timestamps
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  // Statistics
+  viewsCount         Int      @default(0)
+  
+  // Relations
+  lessons            Lesson[]
+  enrollments        Enrollment[]
+  invitations        CourseInvitation[]
+}
+
+model Lesson {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  content     String?  // Could be video URL, markdown, etc.
+  duration    Int      @default(0) // Duration in minutes
+  type        String   @default("video") // video, document, quiz, etc.
+  order       Int      @default(0)
+  
+  // Quiz specific
+  pointsReward Int     @default(10)
+  passScore    Int     @default(80) // Percentage
+  
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  questions   QuizQuestion[]
+  progress    LessonProgress[]
+  attempts    QuizAttempt[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model QuizQuestion {
+  id          String   @id @default(uuid())
+  question    String
+  options     String   // JSON array of strings
+  correctIndex Int
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+}
+
+model QuizAttempt {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  score       Int      // Percentage
+  passed      Boolean
+  pointsEarned Int     @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model LessonProgress {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  isCompleted Boolean  @default(false)
+  timeSpent   Int      @default(0) // in minutes
+  lastAccessed DateTime @default(now())
+
+  @@unique([userId, lessonId])
+}
+
+model Enrollment {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  // Payment info (for PAID courses)
+  paidAmount Float?
+  paidAt     DateTime?
+  
+  // Progress
+  progress   Int      @default(0)
+  startedAt  DateTime @default(now())
+  completedAt DateTime?
+  
+  @@unique([userId, courseId])
+}
+
+model CourseInvitation {
+  id        String   @id @default(uuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Invitation status
+  status    String   @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  invitedAt DateTime @default(now())
+  
+  @@unique([courseId, userId])
+}
