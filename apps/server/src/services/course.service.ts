@@ -1,5 +1,6 @@
 import { supabase } from '../utils/supabase.js';
 import { Visibility, AccessRule } from '../../../../shared/constants.js';
+import { listAdminCourses } from '../controllers/courses.js';
 
 export class CourseService {
     async createCourse(data: any, adminId: string) {
@@ -10,7 +11,7 @@ export class CourseService {
             .insert({
                 title,
                 description,
-                tags: tags ? JSON.stringify(tags) : null,
+                tags: tags || [],
                 image: image || null,
                 published,
                 website: website || null,
@@ -30,34 +31,55 @@ export class CourseService {
 
         return {
             ...course,
-            tags: course.tags ? JSON.parse(course.tags) : [],
+            tags: course.tags || [],
         };
     }
 
     async listCourses(isAuthenticated: boolean) {
-        let query = supabase
-            .from('Course')
-            .select(`
-                *,
-                responsibleAdmin:User(id, name, avatar),
-                enrollments:Enrollment(count)
-            `)
-            .eq('published', true);
+        console.log('listCourses called, isAuthenticated:', isAuthenticated);
+        try {
+            let query = supabase
+                .from('Course')
+                .select(`
+                    *,
+                    responsibleAdmin:User(id, name, avatar)
+                `)
+                .eq('published', true);
 
-        if (!isAuthenticated) {
-            query = query.eq('visibility', Visibility.EVERYONE);
+            if (!isAuthenticated) {
+                query = query.eq('visibility', Visibility.EVERYONE);
+            }
+
+            const { data: courses, error } = await query.order('createdAt', { ascending: false });
+
+            if (error) {
+                console.error('Supabase error in listCourses:', error);
+                throw new Error(`Failed to list courses: ${error.message}`);
+            }
+
+            console.log(`Found ${courses?.length || 0} courses`);
+
+            // For each course, get the enrollment count
+            const coursesWithCounts = await Promise.all(
+                (courses || []).map(async (course: any) => {
+                    const { count } = await supabase
+                        .from('Enrollment')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('courseId', course.id);
+
+                    return {
+                        ...course,
+                        tags: course.tags || [],
+                        enrolledCount: count || 0,
+                    };
+                })
+            );
+
+            return coursesWithCounts;
+        } catch (err) {
+            console.error('Catch block in listCourses:', err);
+            throw err;
         }
-
-        const { data: courses, error } = await query.order('createdAt', { ascending: false });
-
-        if (error) throw new Error(`Failed to list courses: ${error.message}`);
-
-        return (courses || []).map((course: any) => ({
-            ...course,
-            tags: course.tags ? JSON.parse(course.tags) : [],
-            enrolledCount: course.enrollments?.[0]?.count || 0,
-            enrollments: undefined,
-        }));
     }
 
     async getCourse(id: string, user?: { userId: string, role: string }) {
@@ -66,13 +88,18 @@ export class CourseService {
             .from('Course')
             .select(`
                 *,
-                responsibleAdmin:User(id, name, email, avatar),
-                enrollments:Enrollment(count)
+                responsibleAdmin:User(id, name, email, avatar)
             `)
             .eq('id', id)
             .maybeSingle();
 
         if (error || !course) throw new Error('Course not found');
+
+        // Get enrollment count
+        const { count: enrolledCount } = await supabase
+            .from('Enrollment')
+            .select('*', { count: 'exact', head: true })
+            .eq('courseId', id);
 
         const updateViews = !isAuthenticated || (user!.role === 'LEARNER');
         if (updateViews) {
@@ -132,11 +159,10 @@ export class CourseService {
 
         return {
             ...course,
-            tags: course.tags ? JSON.parse(course.tags) : [],
-            enrolledCount: course.enrollments?.[0]?.count || 0,
+            tags: course.tags || [],
+            enrolledCount: enrolledCount || 0,
             canStart,
             enrollmentStatus,
-            enrollments: undefined,
         };
     }
 
@@ -168,7 +194,7 @@ export class CourseService {
         const updateData: any = {};
         if (data.title !== undefined) updateData.title = data.title;
         if (data.description !== undefined) updateData.description = data.description;
-        if (data.tags !== undefined) updateData.tags = JSON.stringify(data.tags);
+        if (data.tags !== undefined) updateData.tags = data.tags;
         if (data.image !== undefined) updateData.image = data.image || null;
         if (data.published !== undefined) updateData.published = data.published;
         if (data.website !== undefined) updateData.website = data.website || null;
@@ -194,7 +220,7 @@ export class CourseService {
 
         return {
             ...course,
-            tags: course.tags ? JSON.parse(course.tags) : [],
+            tags: course.tags || [],
         };
     }
 
@@ -283,10 +309,7 @@ export class CourseService {
             .select(`
                 *,
                 responsibleAdmin:User(id, name, avatar),
-                lessons:Lesson(duration),
-                enrollments:Enrollment(count),
-                invitations:CourseInvitation(count),
-                lessons_count:Lesson(count)
+                lessons:Lesson(duration)
             `);
 
         if (user.role === 'INSTRUCTOR') {
@@ -297,22 +320,31 @@ export class CourseService {
 
         if (error) throw new Error(`Failed to list admin courses: ${error.message}`);
 
-        return (courses || []).map((course: any) => ({
-            ...course,
-            tags: course.tags ? JSON.parse(course.tags) : [],
-            enrolledCount: course.enrollments?.[0]?.count || 0,
-            invitationCount: course.invitations?.[0]?.count || 0,
-            lessonsCount: course.lessons_count?.[0]?.count || 0,
-            totalDuration: (course.lessons || []).reduce((sum: number, lesson: any) => sum + (lesson.duration || 0), 0),
-            enrollments: undefined,
-            invitations: undefined,
-            lessons: undefined,
-            lessons_count: undefined,
-        }));
+        // For each course, get the counts
+        const coursesWithCounts = await Promise.all(
+            (courses || []).map(async (course: any) => {
+                const [enrollResult, inviteResult, lessonResult] = await Promise.all([
+                    supabase.from('Enrollment').select('*', { count: 'exact', head: true }).eq('courseId', course.id),
+                    supabase.from('CourseInvitation').select('*', { count: 'exact', head: true }).eq('courseId', course.id),
+                    supabase.from('Lesson').select('*', { count: 'exact', head: true }).eq('courseId', course.id),
+                ]);
+
+                return {
+                    ...course,
+                    tags: course.tags || [],
+                    enrolledCount: enrollResult.count || 0,
+                    invitationCount: inviteResult.count || 0,
+                    lessonsCount: lessonResult.count || 0,
+                    totalDuration: (course.lessons || []).reduce((sum: number, lesson: any) => sum + (lesson.duration || 0), 0),
+                };
+            })
+        );
+
+        return coursesWithCounts;
     }
 
     async getAttendees(id: string) {
-<<<<<<< HEAD
+        // Fetch base enrollments and invitations
         const [enrollRes, inviteRes] = await Promise.all([
             supabase.from('Enrollment').select('*, user:User(id, name, email, avatar)').eq('courseId', id),
             supabase.from('CourseInvitation').select('*, user:User(id, name, email, avatar)').eq('courseId', id),
@@ -321,60 +353,42 @@ export class CourseService {
         if (enrollRes.error) throw new Error(`Failed to get enrollments: ${enrollRes.error.message}`);
         if (inviteRes.error) throw new Error(`Failed to get invitations: ${inviteRes.error.message}`);
 
-        return { enrollments: enrollRes.data, invitations: inviteRes.data };
-=======
-        // Fetch base enrollments and invitations
-        const [enrollments, invitations] = await Promise.all([
-            prisma.enrollment.findMany({
-                where: { courseId: id },
-                include: {
-                    user: { select: { id: true, name: true, email: true, avatar: true } }
-                },
-            }),
-            prisma.courseInvitation.findMany({
-                where: { courseId: id },
-                include: {
-                    user: { select: { id: true, name: true, email: true, avatar: true } }
-                },
-            }),
-        ]);
+        const enrollments = enrollRes.data || [];
+        const invitations = inviteRes.data || [];
 
         // Enhance enrollments with additional metrics (Last Active, Quiz Scores)
-        // We do this in parallel to minimize DB round trips, though for large courses this might need optimization
-        const enhancedEnrollments = await Promise.all(enrollments.map(async (enrollment) => {
+        const enhancedEnrollments = await Promise.all(enrollments.map(async (enrollment: any) => {
             // 1. Get Last Active time (max lastAccessed from LessonProgress for this course)
-            const lastActiveProgress = await prisma.lessonProgress.findFirst({
-                where: {
-                    userId: enrollment.userId,
-                    lesson: { courseId: id }
-                },
-                orderBy: { lastAccessed: 'desc' },
-                select: { lastAccessed: true }
-            });
+            const { data: progressData } = await supabase
+                .from('LessonProgress')
+                .select('lastAccessed, lesson:Lesson!inner(courseId)')
+                .eq('userId', enrollment.userId)
+                .eq('lesson.courseId', id)
+                .order('lastAccessed', { ascending: false })
+                .limit(1)
+                .maybeSingle();
 
             // 2. Calculate Average Quiz Score
-            const quizAttempts = await prisma.quizAttempt.findMany({
-                where: {
-                    userId: enrollment.userId,
-                    lesson: { courseId: id }
-                },
-                select: { score: true }
-            });
+            const { data: quizAttempts } = await supabase
+                .from('QuizAttempt')
+                .select('score, lesson:Lesson!inner(courseId)')
+                .eq('userId', enrollment.userId)
+                .eq('lesson.courseId', id);
 
-            const avgScore = quizAttempts.length > 0
-                ? Math.round(quizAttempts.reduce((acc, curr) => acc + curr.score, 0) / quizAttempts.length)
-                : 0; // Or null if no quizzes taken
+            const attempts = quizAttempts || [];
+            const avgScore = attempts.length > 0
+                ? Math.round(attempts.reduce((acc, curr) => acc + curr.score, 0) / attempts.length)
+                : 0;
 
             return {
                 ...enrollment,
-                lastAccessed: lastActiveProgress?.lastAccessed || enrollment.startedAt, // Fallback to start date
+                lastAccessed: progressData?.lastAccessed || enrollment.enrolledAt,
                 performance: avgScore,
-                completed: enrollment.progress === 100, // Infer certificate eligibility
+                completed: enrollment.progress === 100,
             };
         }));
 
         return { enrollments: enhancedEnrollments, invitations };
->>>>>>> 0e6e3a9e5ee2620d7978f2025d8f2d66fe3d2be0
     }
 
     async inviteAttendee(id: string, email: string) {
@@ -386,14 +400,35 @@ export class CourseService {
 
         if (!user) throw new Error('User with this email not found');
 
+        const { data: existingInvitation } = await supabase
+            .from('CourseInvitation')
+            .select('*')
+            .eq('courseId', id)
+            .eq('userId', user.id)
+            .maybeSingle();
+
+        if (existingInvitation) {
+            const { data, error } = await supabase
+                .from('CourseInvitation')
+                .update({
+                    status: 'PENDING',
+                    invitedAt: new Date().toISOString()
+                })
+                .eq('id', existingInvitation.id)
+                .select()
+                .single();
+            if (error) throw new Error(`Failed to invite attendee: ${error.message}`);
+            return data;
+        }
+
         const { data, error } = await supabase
             .from('CourseInvitation')
-            .upsert({
+            .insert({
                 courseId: id,
                 userId: user.id,
                 status: 'PENDING',
                 invitedAt: new Date().toISOString()
-            }, { onConflict: 'courseId,userId' })
+            })
             .select()
             .single();
 
@@ -402,58 +437,45 @@ export class CourseService {
     }
 
     async bulkUnenroll(courseId: string, userIds: string[]) {
-        // Delete enrollments
-        await prisma.enrollment.deleteMany({
-            where: {
-                courseId,
-                userId: { in: userIds }
-            }
-        });
+        const { error } = await supabase
+            .from('Enrollment')
+            .delete()
+            .eq('courseId', courseId)
+            .in('userId', userIds);
 
-        // Also delete progress to ensure clean slate if they re-enroll? 
-        // Usually safer to keep it, but "Reset" is a separate action. 
-        // Requirements say "Unenroll", usually implies removal.
-        // Let's keep data for now unless explicitly asked to wipe history, 
-        // but typically unenroll removes access.
+        if (error) throw new Error(`Failed to bulk unenroll: ${error.message}`);
     }
 
     async bulkResetProgress(courseId: string, userIds: string[]) {
-        return await prisma.$transaction(async (tx) => {
-            // 1. Reset Enrollment progress
-            await tx.enrollment.updateMany({
-                where: {
-                    courseId,
-                    userId: { in: userIds }
-                },
-                data: {
-                    progress: 0,
-                    completedAt: null,
-                    startedAt: new Date() // Reset start time? Maybe. Let's update it to 're-started'.
-                }
-            });
+        // 1. Reset Enrollment progress
+        const { error: enrollError } = await supabase
+            .from('Enrollment')
+            .update({
+                progress: 0,
+                completedAt: null,
+            })
+            .eq('courseId', courseId)
+            .in('userId', userIds);
 
-            // 2. Delete LessonProgress for this course
-            // Need to find lessons first to filter simple delete
-            // OR use deleteMany with where lesson.courseId provided prisma supports relation filtering in deleteMany (it generally doesn't for deep relations)
-            // So we fetch lessons first.
-            const lessons = await tx.lesson.findMany({ where: { courseId }, select: { id: true } });
-            const lessonIds = lessons.map(l => l.id);
+        if (enrollError) throw new Error(`Failed to reset enrollment progress: ${enrollError.message}`);
 
-            await tx.lessonProgress.deleteMany({
-                where: {
-                    userId: { in: userIds },
-                    lessonId: { in: lessonIds }
-                }
-            });
+        // 2. Fetch lessons to filter progress/attempts delete
+        const { data: lessons } = await supabase
+            .from('Lesson')
+            .select('id')
+            .eq('courseId', courseId);
 
-            // 3. Delete QuizAttempts? 'Reset Progress' usually implies retaking quizzes.
-            await tx.quizAttempt.deleteMany({
-                where: {
-                    userId: { in: userIds },
-                    lessonId: { in: lessonIds }
-                }
-            });
-        });
+        const lessonIds = (lessons || []).map(l => l.id);
+        if (lessonIds.length === 0) return;
+
+        // 3. Delete LessonProgress and QuizAttempts for this course and users
+        const [progressError, quizError] = await Promise.all([
+            supabase.from('LessonProgress').delete().in('userId', userIds).in('lessonId', lessonIds),
+            supabase.from('QuizAttempt').delete().in('userId', userIds).in('lessonId', lessonIds),
+        ]);
+
+        if (progressError.error) throw new Error(`Failed to delete lesson progress: ${progressError.error.message}`);
+        if (quizError.error) throw new Error(`Failed to delete quiz attempts: ${quizError.error.message}`);
     }
 
     async listEnrolledCourses(userId: string) {
@@ -463,21 +485,31 @@ export class CourseService {
                 *,
                 course:Course(
                     *,
-                    responsibleAdmin:User(id, name, avatar),
-                    lessons:Lesson(count)
+                    responsibleAdmin:User(id, name, avatar)
                 )
             `)
             .eq('userId', userId);
 
         if (error) throw new Error(`Failed to list enrolled courses: ${error.message}`);
 
-        return (enrollments || []).map((e: any) => ({
-            ...e.course,
-            tags: e.course.tags ? JSON.parse(e.course.tags) : [],
-            lessonsCount: e.course.lessons?.[0]?.count || 0,
-            progress: e.progress,
-            lessons: undefined
-        }));
+        // For each enrollment, get the lesson count
+        const enrollmentsWithCounts = await Promise.all(
+            (enrollments || []).map(async (e: any) => {
+                const { count: lessonsCount } = await supabase
+                    .from('Lesson')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('courseId', e.course.id);
+
+                return {
+                    ...e.course,
+                    tags: e.course.tags || [],
+                    lessonsCount: lessonsCount || 0,
+                    progress: e.progress,
+                };
+            })
+        );
+
+        return enrollmentsWithCounts;
     }
 }
 

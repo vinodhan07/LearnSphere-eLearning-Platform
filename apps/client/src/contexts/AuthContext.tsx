@@ -82,31 +82,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const register = useCallback(async (data: RegisterRequest) => {
-        // 1. Sign up user via Supabase Auth
+        // Sign up user via Supabase Auth
+        // The public.User profile is created automatically via Supabase database trigger
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: data.email,
             password: data.password,
+            options: {
+                data: {
+                    name: data.name,
+                }
+            }
         });
 
         if (authError || !authData.user) throw authError || new Error('Auth signup failed');
 
-        // 2. Create profile in matching User table
-        const profileData = {
-            id: authData.user.id,
-            email: data.email,
-            name: data.name,
-            role: data.role || 'LEARNER',
-            avatar: null,
-            totalPoints: 0,
-        };
-
-        const { error: profileError } = await supabase
-            .from('User')
-            .insert(profileData);
-
-        if (profileError) throw profileError;
-
-        setUser(profileData);
+        // setUser will be called by onAuthStateChange listener
     }, []);
 
     const googleLogin = useCallback(async (credential: string) => {

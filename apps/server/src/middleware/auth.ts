@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyAccessToken, TokenPayload } from '../utils/auth.js';
+import { TokenPayload } from '../utils/auth.js';
+import { supabase } from '../utils/supabase.js';
 
 // Extend Express Request to include user info
 declare global {
@@ -11,10 +12,9 @@ declare global {
 }
 
 /**
- * Middleware to authenticate JWT access token
- * Attaches user payload to request if valid
+ * Middleware to authenticate JWT access token via Supabase
  */
-export function authenticate(req: Request, res: Response, next: NextFunction): void {
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -23,29 +23,58 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
     }
 
     const token = authHeader.substring(7);
-    const payload = verifyAccessToken(token);
 
-    if (!payload) {
-        res.status(401).json({ error: 'Invalid or expired token' });
-        return;
+    try {
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+
+        if (authError || !authUser) {
+            res.status(401).json({ error: 'Invalid or expired token' });
+            return;
+        }
+
+        // Fetch additional profile info (role) from public table
+        const { data: profile } = await supabase
+            .from('User')
+            .select('role')
+            .eq('id', authUser.id)
+            .maybeSingle();
+
+        req.user = {
+            userId: authUser.id,
+            email: authUser.email || '',
+            role: profile?.role || 'LEARNER',
+        };
+        next();
+    } catch (error) {
+        res.status(401).json({ error: 'Authentication failed' });
     }
-
-    req.user = payload;
-    next();
 }
 
 /**
  * Optional authentication middleware
- * Does not reject if no token, but attaches user if valid token present
  */
-export function optionalAuthenticate(req: Request, res: Response, next: NextFunction): void {
+export async function optionalAuthenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
     const authHeader = req.headers.authorization;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
-        const payload = verifyAccessToken(token);
-        if (payload) {
-            req.user = payload;
+        try {
+            const { data: { user: authUser } } = await supabase.auth.getUser(token);
+            if (authUser) {
+                const { data: profile } = await supabase
+                    .from('User')
+                    .select('role')
+                    .eq('id', authUser.id)
+                    .maybeSingle();
+
+                req.user = {
+                    userId: authUser.id,
+                    email: authUser.email || '',
+                    role: profile?.role || 'LEARNER',
+                };
+            }
+        } catch (e) {
+            // Ignore optional auth errors
         }
     }
 

@@ -31,6 +31,16 @@ export interface Course {
     enrollmentStatus?: string;
 }
 
+export interface Attachment {
+    id: string;
+    lessonId: string;
+    name: string;
+    url: string;
+    size?: number;
+    type?: string;
+    createdAt: string;
+}
+
 export interface Lesson {
     id: string;
     courseId: string;
@@ -45,4 +55,5 @@ export interface Lesson {
     createdAt: string;
     updatedAt: string;
     completed?: boolean;
+    attachments?: Attachment[];
 }

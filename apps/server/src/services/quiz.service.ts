@@ -12,7 +12,7 @@ export class QuizService {
 
         return (data || []).map((q: any) => ({
             ...q,
-            options: JSON.parse(q.options),
+            options: q.options,
         }));
     }
 
@@ -31,7 +31,7 @@ export class QuizService {
 
         let correctCount = 0;
         lesson.questions.forEach((q: any, index: number) => {
-            const parsedOptions = JSON.parse(q.options);
+            const parsedOptions = q.options;
             // Verify if the answer index matches
             if (answers[index] === q.correctIndex) {
                 correctCount++;
@@ -90,7 +90,7 @@ export class QuizService {
             .from('QuizQuestion')
             .insert({
                 question,
-                options: JSON.stringify(options),
+                options,
                 correctIndex,
                 lessonId,
             })
@@ -106,7 +106,7 @@ export class QuizService {
         const updateData: any = {};
 
         if (question !== undefined) updateData.question = question;
-        if (options !== undefined) updateData.options = JSON.stringify(options);
+        if (options !== undefined) updateData.options = options;
         if (correctIndex !== undefined) updateData.correctIndex = correctIndex;
 
         const { data: result, error } = await supabase
