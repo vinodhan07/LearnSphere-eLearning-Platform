@@ -1,7 +1,0 @@
-#TYPE Selected.Microsoft.PowerShell.Commands.MatchInfo
-"LineNumber","Line","Path"
-"12","const ACCESS_TOKEN_KEY = 'learnsphere_access_token';","F:\New folder\learnSphere\apps\client\src\lib\api.ts"
-"13","const REFRESH_TOKEN_KEY = 'learnsphere_refresh_token';","F:\New folder\learnSphere\apps\client\src\lib\api.ts"
-"43","              <span className=""text-accent"">LearnSphere</span>","F:\New folder\learnSphere\apps\client\src\pages\Index.tsx"
-"120","            <h2 className=""font-heading text-3xl font-bold text-foreground"">Why LearnSphere?</h2>","F:\New folder\learnSphere\apps\client\src\pages\Index.tsx"
-"155","            ? 2026 LearnSphere. Empowering learners worldwide.","F:\New folder\learnSphere\apps\client\src\pages\Index.tsx"

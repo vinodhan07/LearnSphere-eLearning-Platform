@@ -66,6 +66,11 @@ const App = () => (
                 <Profile />
               </ProtectedRoute>
             } />
+            <Route path="/learner-dashboard" element={
+              <ProtectedRoute minRole="LEARNER">
+                <Profile />
+              </ProtectedRoute>
+            } />
 
             {/* Admin/Instructor routes wrapped in AdminLayout */}
             <Route element={
@@ -74,6 +79,7 @@ const App = () => (
               </ProtectedRoute>
             }>
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/instructor-dashboard" element={<AdminDashboard />} />
               <Route path="/admin/course/:id" element={<CourseEditor />} />
               <Route path="/admin/quiz/:courseId" element={<QuizPlayer />} />
               <Route path="/admin/reports" element={<AdminReporting />} />

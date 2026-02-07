@@ -29,8 +29,8 @@ const Navbar = () => {
   ];
 
   const adminLinks = [
-    { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/admin/reporting", label: "Reporting", icon: BarChart3 },
+    { to: "/instructor-dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { to: "/admin/reports", label: "Reporting", icon: BarChart3 },
   ];
 
   const links = isAdmin ? adminLinks : learnerLinks;
@@ -95,7 +95,7 @@ const Navbar = () => {
         <div className="hidden md:flex items-center gap-3">
           {/* Show Instructor Panel for INSTRUCTOR+ */}
           {!isAdmin && isAuthenticated && hasMinimumRole("INSTRUCTOR") && (
-            <Link to="/admin">
+            <Link to="/instructor-dashboard">
               <Button variant="outline" size="sm" className="gap-2 border-border text-muted-foreground hover:text-foreground">
                 <LayoutDashboard className="h-4 w-4" />
                 Instructor Panel
@@ -148,6 +148,10 @@ const Navbar = () => {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate("/learner-dashboard")}>
+                  <LayoutDashboard className="h-4 w-4 mr-2" />
+                  Learner Dashboard
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/my-courses")}>
                   <GraduationCap className="h-4 w-4 mr-2" />
                   My Courses

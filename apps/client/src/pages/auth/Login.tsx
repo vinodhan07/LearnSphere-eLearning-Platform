@@ -17,7 +17,7 @@ export default function Login() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [googleLoaded, setGoogleLoaded] = useState(false);
 
-    const { login, googleLogin } = useAuth();
+    const { user, isAuthenticated, login, googleLogin } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const { toast } = useToast();
@@ -83,28 +83,53 @@ export default function Login() {
         }
     };
 
+    // Handle redirection once user is loaded
+    useEffect(() => {
+        if (isAuthenticated) {
+            console.log('[Login] User is authenticated, waiting for profile...');
+
+            if (user) {
+                console.log('[Login] User profile found, role:', user.role);
+                // Redirect based on role
+                if (user.role === 'ADMIN' || user.role === 'INSTRUCTOR') {
+                    console.log('[Login] Redirecting to Instructor Dashboard');
+                    navigate('/instructor-dashboard', { replace: true });
+                } else {
+                    console.log('[Login] Redirecting to learner dashboard');
+                    navigate('/learner-dashboard', { replace: true });
+                }
+            } else {
+                console.log('[Login] Still waiting for user profile...');
+            }
+        }
+    }, [isAuthenticated, user, navigate]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        console.log('[Login] Form submitted for:', email);
         setIsSubmitting(true);
 
         try {
+            console.log('[Login] Calling authService.login...');
             await login({ email, password });
+            console.log('[Login] login() call returned successfully');
             toast({
                 title: 'Welcome back!',
                 description: 'You have successfully logged in.',
             });
-            navigate(from, { replace: true });
+            // Navigation is now handled by useEffect above once user profile is fetched
         } catch (error) {
+            console.error('[Login] Error during submission:', error);
             toast({
                 title: 'Login failed',
                 description: error instanceof Error ? error.message : 'Invalid credentials',
                 variant: 'destructive',
             });
         } finally {
+            console.log('[Login] Setting isSubmitting to false');
             setIsSubmitting(false);
         }
     };
-
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50/50 p-4">
             <div className="w-full max-w-md">

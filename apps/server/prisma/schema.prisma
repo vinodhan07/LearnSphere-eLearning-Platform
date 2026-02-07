@@ -1,13 +1,11 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -51,7 +49,7 @@ model Course {
   id                 String   @id @default(uuid())
   title              String
   description        String?
-  tags               String?  // JSON array stored as string for SQLite
+  tags               Json?    // Native JSON for Postgres
   image              String?
   
   // Publishing
@@ -100,7 +98,7 @@ model Lesson {
   
   // Content Options
   allowDownload Boolean @default(true)
-  attachments   String? // JSON array of attachment objects
+  attachments   Json?   // Native JSON for Postgres
   
   courseId    String
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -116,7 +114,7 @@ model Lesson {
 model QuizQuestion {
   id          String   @id @default(uuid())
   question    String
-  options     String   // JSON array of strings
+  options     Json     // Native JSON for Postgres
   correctIndex Int
   lessonId    String
   lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)

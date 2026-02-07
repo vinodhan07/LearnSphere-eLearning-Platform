@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, Role, LoginRequest, RegisterRequest } from '@/types/auth';
 import { supabase } from '@/lib/supabase';
+import { Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
     user: User | null;
@@ -26,64 +27,130 @@ const ROLE_HIERARCHY: Record<Role, number> = {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
+    const [session, setSession] = useState<Session | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchUserProfile = async (uid: string) => {
-        const { data, error } = await supabase
-            .from('User')
-            .select('*')
-            .eq('id', uid)
-            .maybeSingle();
+        try {
+            const { data, error } = await supabase
+                .from('User')
+                .select('*')
+                .eq('id', uid)
+                .maybeSingle();
 
-        if (error) {
-            console.error('Error fetching user profile:', error.message);
+            if (error) {
+                console.error('[AuthContext] Error fetching user profile:', error.message);
+                return null;
+            }
+
+            if (!data && uid) {
+                console.warn('[AuthContext] Profile missing for user, attempting fallback creation...');
+                // Fallback: Create profile if trigger failed
+                const { data: { user: authUser } } = await supabase.auth.getUser();
+                if (authUser) {
+                    const { data: newProfile, error: createError } = await supabase
+                        .from('User')
+                        .insert({
+                            id: authUser.id,
+                            email: authUser.email,
+                            password: 'SUPABASE_AUTH',
+                            name: authUser.user_metadata?.name || 'User',
+                            role: authUser.user_metadata?.role || 'LEARNER',
+                            totalPoints: 0,
+                            updatedAt: new Date().toISOString()
+                        })
+                        .select()
+                        .maybeSingle();
+
+                    if (!createError) {
+                        console.log('[AuthContext] Fallback profile created:', newProfile?.email);
+                        return newProfile as User;
+                    }
+                    console.error('[AuthContext] Fallback profile creation failed:', createError.message);
+                }
+            }
+
+            console.log('[AuthContext] Profile fetched successfully:', data?.email);
+            return data as User | null;
+        } catch (err: any) {
+            console.warn('[AuthContext] Profile fetch failed:', err.message);
             return null;
         }
-        return data as User | null;
     };
 
     // Check for existing session on mount
     useEffect(() => {
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session) {
-                fetchUserProfile(session.user.id).then(profile => {
+        const initAuth = async () => {
+            console.log('[AuthContext] Initializing auth...');
+            try {
+                console.log('[AuthContext] Getting session from Supabase...');
+                const { data: { session } } = await supabase.auth.getSession();
+                console.log('[AuthContext] Session found:', !!session);
+
+                setSession(session);
+                if (session) {
+                    const profile = await fetchUserProfile(session.user.id);
                     setUser(profile);
+                } else {
+                    setUser(null);
+                }
+            } catch (error) {
+                console.error('[AuthContext] Auth initialization error:', error);
+                setSession(null);
+                setUser(null);
+            } finally {
+                console.log('[AuthContext] Initialization complete, setting isLoading to false');
+                setIsLoading(false);
+            }
+        };
+
+        const initPromise = initAuth();
+
+        // Listen for changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log(`[AuthContext] Auth state changed: ${event}`, !!session);
+
+            // Set session immediately so UI can react (e.g. GuestRoute redirects)
+            setSession(session);
+
+            if (session) {
+                // If we have a session, we must ensure we have a profile
+                // We keep isLoading true while fetching the profile to prevent premature redirection by ProtectedRoutes
+                setIsLoading(true);
+                try {
+                    const profile = await fetchUserProfile(session.user.id);
+                    setUser(profile);
+                } catch (error) {
+                    console.error('[AuthContext] Auth change profile fetch error:', error);
+                } finally {
+                    console.log('[AuthContext] Auth change handled, setting isLoading to false');
                     setIsLoading(false);
-                });
+                }
             } else {
                 setUser(null);
                 setIsLoading(false);
             }
         });
 
-        // Listen for changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            if (session) {
-                const profile = await fetchUserProfile(session.user.id);
-                setUser(profile);
-            } else {
-                setUser(null);
-            }
-            setIsLoading(false);
-        });
-
         return () => subscription.unsubscribe();
     }, []);
 
     const login = useCallback(async (data: LoginRequest) => {
+        console.log('[AuthContext] Attempting login for:', data.email);
         const { error } = await supabase.auth.signInWithPassword({
             email: data.email,
             password: data.password,
         });
 
-        if (error) throw error;
-        // User state will be updated by onAuthStateChange listener
+        if (error) {
+            console.error('[AuthContext] Login error:', error.message);
+            throw error;
+        }
+        console.log('[AuthContext] Login call successful');
     }, []);
 
     const register = useCallback(async (data: RegisterRequest) => {
-        // Sign up user via Supabase Auth
-        // The public.User profile is created automatically via Supabase database trigger
+        console.log('[AuthContext] Attempting registration for:', data.email);
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: data.email,
             password: data.password,
@@ -95,14 +162,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (authError || !authData.user) throw authError || new Error('Auth signup failed');
-
-        // setUser will be called by onAuthStateChange listener
     }, []);
 
     const googleLogin = useCallback(async (credential: string) => {
-        // This assumes the frontend is handling the Google OAuth flow 
-        // and calling this with the result. For Supabase, we typically use 
-        // signInWithOAuth. If using a specific credential (ID Token), we use:
         const { error } = await supabase.auth.signInWithIdToken({
             provider: 'google',
             token: credential,
@@ -113,6 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const logout = useCallback(async () => {
         await supabase.auth.signOut();
+        setSession(null);
         setUser(null);
     }, []);
 
@@ -141,7 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const value: AuthContextType = {
         user,
         isLoading,
-        isAuthenticated: !!user,
+        isAuthenticated: !!session, // Decoupled from user profile
         login,
         register,
         googleLogin,
