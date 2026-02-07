@@ -35,7 +35,7 @@ interface Lesson {
     title: string;
     description: string;
     content: string;
-    duration: number;
+    duration: number | string;
     type: 'video' | 'document' | 'image' | 'quiz';
     order: number;
     allowDownload: boolean;
@@ -103,50 +103,39 @@ const LessonEditorModal = ({ isOpen, onClose, courseId, lesson, onSave }: Lesson
     };
 
     const handleSave = async () => {
-        if (!formData.title) {
-            toast({ title: "Error", description: "Title is required", variant: "destructive" });
+        // Validation
+        if (!formData.title.trim()) {
+            toast({ title: "Validation Error", description: "Lesson title is required.", variant: "destructive" });
+            return;
+        }
+        if (!formData.content.trim()) {
+            toast({ title: "Validation Error", description: "Lesson content/URL is required.", variant: "destructive" });
             return;
         }
 
         try {
             setIsSaving(true);
             const dataToSave = {
-                title: formData.title,
-                description: formData.description,
-                content: formData.content,
-                duration: formData.duration,
-                type: formData.type,
-                order: formData.order,
-                allowDownload: formData.allowDownload,
-                courseId,
-                attachments: JSON.stringify(attachments),
-                updatedAt: new Date().toISOString()
+                ...formData,
+                duration: typeof formData.duration === 'string' ? (parseFloat(formData.duration) || 0) : formData.duration,
+                attachments: JSON.stringify(attachments)
             };
 
+            let savedLesson;
             if (lesson?.id) {
-                const { error } = await supabase
-                    .from('Lesson')
-                    .update(dataToSave)
-                    .eq('id', lesson.id);
-                if (error) throw error;
-                toast({ title: "Success", description: "Lesson updated" });
+                savedLesson = await api.put(`/lessons/${lesson.id}`, dataToSave);
+                toast({ title: "Success", description: "Lesson updated successfully." });
             } else {
-                const { error } = await supabase
-                    .from('Lesson')
-                    .insert({
-                        ...dataToSave,
-                        createdAt: new Date().toISOString()
-                    });
-                if (error) throw error;
-                toast({ title: "Success", description: "Lesson created" });
+                savedLesson = await api.post(`/lessons/course/${courseId}`, dataToSave);
+                toast({ title: "Success", description: "Lesson created successfully." });
             }
             onSave(formData);
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save lesson:", error);
             toast({
-                title: "Error",
-                description: "Failed to save lesson",
+                title: "Save Failed",
+                description: error.message || "An unexpected error occurred. Please try again.",
                 variant: "destructive"
             });
         } finally {
@@ -210,10 +199,18 @@ const LessonEditorModal = ({ isOpen, onClose, courseId, lesson, onSave }: Lesson
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-foreground/80">Video Duration (min)</label>
                                     <Input
-                                        type="number"
+                                        type="text"
+                                        inputMode="decimal"
                                         value={formData.duration}
-                                        onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) || 0 })}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            // Allow empty string, digits, and a single decimal point
+                                            if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                                                setFormData({ ...formData, duration: val });
+                                            }
+                                        }}
                                         className="h-10"
+                                        placeholder="0.0"
                                     />
                                 </div>
                             )}

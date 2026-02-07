@@ -1,38 +1,46 @@
-import React, { useState, useEffect } from "react";
-import { Search } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Course } from "@/data/mockData";
+import { getCourses } from "@/lib/api";
+import { Course } from "@/types/course";
 import CourseCard from "@/components/courses/CourseCard";
 import Navbar from "@/components/layout/Navbar";
-import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 const categories = ["All", "Development", "Design", "Data Science", "Mobile", "Cloud", "Security"];
 
 const CourseCatalog = () => {
-  const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All");
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All");
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchCourses = async () => {
-      const { data, error } = await supabase
-        .from('Course')
-        .select('*')
-        .eq('published', true)
-        .order('createdAt', { ascending: false });
-
-      if (data) setCourses(data as any);
-      setIsLoading(false);
+      try {
+        const data = await getCourses();
+        setCourses(data);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load courses. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchCourses();
-  }, []);
+  }, [toast]);
 
-  const filtered = courses.filter((c) => {
+  // Backend already filters published courses for guests, but valid to be safe
+  const published = courses.filter((c) => c.published);
+  const filtered = published.filter((c) => {
     const matchesSearch = c.title.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = activeCategory === "All" || c.category === activeCategory;
+    const matchesCategory = activeCategory === "All" || (c.tags && c.tags.includes(activeCategory));
     return matchesSearch && matchesCategory;
   });
 
@@ -74,25 +82,22 @@ const CourseCatalog = () => {
           </div>
         </div>
 
-        {/* Grid */}
         {isLoading ? (
-          <div className="text-center py-20">
-            <p className="text-lg text-muted-foreground">Loading courses...</p>
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filtered.map((course, i) => (
-                <CourseCard key={course.id} course={course} index={i} />
-              ))}
-            </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filtered.map((course, i) => (
+              <CourseCard key={course.id} course={course} index={i} />
+            ))}
+          </div>
+        )}
 
-            {filtered.length === 0 && (
-              <div className="text-center py-20 text-muted-foreground">
-                <p className="text-lg">No courses found matching your criteria.</p>
-              </div>
-            )}
-          </>
+        {!isLoading && filtered.length === 0 && (
+          <div className="text-center py-20 text-muted-foreground">
+            <p className="text-lg">No courses found matching your criteria.</p>
+          </div>
         )}
       </div>
     </div>

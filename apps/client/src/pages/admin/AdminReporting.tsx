@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Users, Clock, CheckCircle2, BookOpen, Search, Columns3 } from "lucide-react";
+import { Users, Clock, CheckCircle2, BookOpen, Search, Columns3, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -109,6 +109,40 @@ const AdminReporting = () => {
     { label: "Completed", value: completed, icon: CheckCircle2, color: "text-success" },
   ];
 
+  const handleDownloadReport = () => {
+    // Group by course to calculate aggregate metrics
+    const courseStats: Record<string, { enrolled: number; progressSum: number; completed: number }> = {};
+
+    reportData.forEach(r => {
+      if (!courseStats[r.courseName]) {
+        courseStats[r.courseName] = { enrolled: 0, progressSum: 0, completed: 0 };
+      }
+      courseStats[r.courseName].enrolled++;
+      courseStats[r.courseName].progressSum += r.completionPercentage;
+      if (r.status === 'completed') courseStats[r.courseName].completed++;
+    });
+
+    const headers = ["Course Name,Total Enrolled,Average Progress,Completion Rate,Estimated Revenue (INR)"];
+    const rows = Object.keys(courseStats).map(courseName => {
+      const stats = courseStats[courseName];
+      const avgProgress = (stats.progressSum / stats.enrolled).toFixed(1);
+      const completionRate = ((stats.completed / stats.enrolled) * 100).toFixed(1);
+      // Mocking revenue calculation (e.g. fixed 4999 INR price per student for demo)
+      const revenue = stats.enrolled * 4999;
+
+      return `"${courseName}",${stats.enrolled},${avgProgress}%,${completionRate}%,${revenue}`;
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + headers.concat(rows).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "platform_analytics_report.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="bg-background">
       <div className="container py-8">
@@ -140,29 +174,34 @@ const AdminReporting = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search by course or participant..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
           </div>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Columns3 className="h-4 w-4" /> Columns
-              </Button>
-            </SheetTrigger>
-            <SheetContent>
-              <SheetHeader>
-                <SheetTitle className="font-heading">Customize Columns</SheetTitle>
-              </SheetHeader>
-              <div className="mt-6 space-y-4">
-                {allColumns.map((col) => (
-                  <label key={col.key} className="flex items-center gap-3 cursor-pointer">
-                    <Checkbox
-                      checked={visibleCols.has(col.key)}
-                      onCheckedChange={() => toggleCol(col.key)}
-                    />
-                    <span className="text-sm">{col.label}</span>
-                  </label>
-                ))}
-              </div>
-            </SheetContent>
-          </Sheet>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadReport}>
+              <Download className="h-4 w-4" /> Download Report
+            </Button>
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Columns3 className="h-4 w-4" /> Columns
+                </Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader>
+                  <SheetTitle className="font-heading">Customize Columns</SheetTitle>
+                </SheetHeader>
+                <div className="mt-6 space-y-4">
+                  {allColumns.map((col) => (
+                    <label key={col.key} className="flex items-center gap-3 cursor-pointer">
+                      <Checkbox
+                        checked={visibleCols.has(col.key)}
+                        onCheckedChange={() => toggleCol(col.key)}
+                      />
+                      <span className="text-sm">{col.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
 
         {/* Table */}

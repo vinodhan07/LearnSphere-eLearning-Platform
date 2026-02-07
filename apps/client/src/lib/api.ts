@@ -5,6 +5,7 @@ import {
     RefreshResponse,
     User,
 } from '@/types/auth';
+import { Course } from '@/types/course';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -95,7 +96,19 @@ async function apiRequest<T>(
 
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Request failed');
+        let errorMessage = error.error || 'Request failed';
+
+        // Handle validation details from Zod
+        if (error.details) {
+            const detailMsg = Object.entries(error.details)
+                .map(([key, msgs]) => `${key}: ${(msgs as string[]).join(', ')}`)
+                .join(' | ');
+            if (detailMsg) {
+                errorMessage = `${errorMessage}: ${detailMsg}`;
+            }
+        }
+
+        throw new Error(errorMessage);
     }
 
     return response.json();
@@ -211,6 +224,16 @@ export async function logout(): Promise<void> {
  */
 export async function getCurrentUser(): Promise<{ user: User }> {
     return apiRequest('/auth/me');
+}
+
+// ============ Course API Functions ============
+
+export async function getCourses(): Promise<Course[]> {
+    return get<Course[]>('/courses');
+}
+
+export async function getCourse(id: string): Promise<Course> {
+    return get<Course>(`/courses/${id}`);
 }
 
 // ============ Generic API Helpers ============

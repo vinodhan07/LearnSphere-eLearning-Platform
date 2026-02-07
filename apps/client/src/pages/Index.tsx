@@ -1,15 +1,15 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, Users, Trophy, PlayCircle, Star, CheckCircle } from "lucide-react";
+import { ArrowRight, BookOpen, Users, Trophy, PlayCircle, Star, CheckCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { mockCourses } from "@/data/mockData";
+import { getCourses } from "@/lib/api";
+import type { Course } from "@/types/course";
 import CourseCard from "@/components/courses/CourseCard";
 import Navbar from "@/components/layout/Navbar";
 import { motion } from "framer-motion";
 import heroBg from "@/assets/hero-bg.jpg";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState, useEffect } from "react";
-import { Course } from "@/data/mockData";
-import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 const stats = [
   { icon: BookOpen, value: "150+", label: "Courses" },
@@ -22,21 +22,30 @@ const Index = () => {
   const [featuredCourses, setFeaturedCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { hasMinimumRole } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchCourses = async () => {
-      const { data, error } = await supabase
-        .from('Course')
-        .select('*')
-        .eq('published', true)
-        .limit(3);
-
-      if (data) setFeaturedCourses(data as any);
-      setIsLoading(false);
+      try {
+        const data = await getCourses();
+        // Server already filters published for guests, but we double check to be safe
+        // and take the first 3 for the featured section
+        const published = data.filter((c: Course) => c.published).slice(0, 3);
+        setFeaturedCourses(published);
+      } catch (error) {
+        console.error("Failed to fetch courses:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load featured courses.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchCourses();
-  }, []);
+  }, [toast]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -128,13 +137,24 @@ const Index = () => {
               </Button>
             </Link>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {isLoading ? (
-              <p className="text-center col-span-full text-muted-foreground py-10">Loading featured courses...</p>
-            ) : featuredCourses.map((course, i) => (
-              <CourseCard key={course.id} course={course} index={i} />
-            ))}
-          </div>
+
+          {isLoading ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredCourses.length > 0 ? (
+                featuredCourses.map((course, i) => (
+                  <CourseCard key={course.id} course={course} index={i} />
+                ))
+              ) : (
+                <div className="col-span-full text-center py-10 text-muted-foreground">
+                  No featured courses available at the moment.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 

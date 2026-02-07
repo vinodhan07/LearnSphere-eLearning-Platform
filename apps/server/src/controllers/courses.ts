@@ -224,3 +224,31 @@ export async function contactAttendees(req: Request, res: Response): Promise<voi
         res.status(500).json({ error: 'Internal server error' });
     }
 }
+
+/**
+ * POST /api/courses/:id/bulk-action
+ */
+export async function handleBulkAction(req: Request, res: Response): Promise<void> {
+    try {
+        const { action, userIds } = req.body;
+        const courseId = req.params.id as string;
+
+        if (!action || !userIds || !Array.isArray(userIds) || userIds.length === 0) {
+            res.status(400).json({ error: 'Action and userIds array are required' });
+            return;
+        }
+
+        if (action === 'unenroll') {
+            await courseService.bulkUnenroll(courseId, userIds);
+            res.json({ message: `Successfully unenrolled ${userIds.length} users.` });
+        } else if (action === 'reset_progress') {
+            await courseService.bulkResetProgress(courseId, userIds);
+            res.json({ message: `Successfully reset progress for ${userIds.length} users.` });
+        } else {
+            res.status(400).json({ error: 'Invalid action' });
+        }
+    } catch (error) {
+        console.error('Bulk action error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}

@@ -4,10 +4,12 @@ import { ArrowLeft, BookOpen, Clock, Users, Star, Play, FileText, Image as Image
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Course, Lesson, Review } from "@/data/mockData";
+import { getCourse } from "@/lib/api";
+import { Course, Lesson } from "@/types/course";
 import Navbar from "@/components/layout/Navbar";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 
 const typeIcons: Record<string, React.ElementType> = {
@@ -21,10 +23,11 @@ const CourseDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const { toast } = useToast();
 
   const [course, setCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -32,14 +35,10 @@ const CourseDetail = () => {
     const fetchData = async () => {
       if (!id) return;
       try {
-        const { data: courseData } = await supabase
-          .from('Course')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
+        const courseData = await getCourse(id);
 
         if (courseData) {
-          setCourse(courseData as any);
+          setCourse(courseData);
 
           const { data: lessonsData } = await supabase
             .from('Lesson')
@@ -74,12 +73,18 @@ const CourseDetail = () => {
         }
       } catch (error) {
         console.error("Error fetching course detail:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load course details.",
+          variant: "destructive",
+        });
+        navigate("/courses");
       } finally {
         setIsLoading(false);
       }
     };
     fetchData();
-  }, [id, user]);
+  }, [id, user, navigate, toast]);
 
   if (isLoading) {
     return (
@@ -104,18 +109,38 @@ const CourseDetail = () => {
     );
   }
 
-  const completedCount = lessons.filter((l) => l.completed).length; // This would need syncing with enrollment progress
+  const completedCount = lessons.filter((l) => (l as any).completed).length;
   const avgRating = reviews.length
     ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
     : "0";
 
   const handleStartLearning = async () => {
     if (!isAuthenticated) {
+      toast({
+        title: "Sign in Required",
+        description: "Please sign in to start learning.",
+      });
       navigate("/login", { state: { from: `/course/${course.id}` } });
       return;
     }
 
     if (!isEnrolled) {
+      if (course.accessRule === 'PAID') {
+        toast({
+          title: "Enrollment Required",
+          description: `This is a premium course. Price: ${course.price} INR`,
+          variant: "default"
+        });
+        return;
+      } else if (course.accessRule === 'INVITE') {
+        toast({
+          title: "Restricted Access",
+          description: "You need an invitation to join this course.",
+          variant: "destructive"
+        });
+        return;
+      }
+
       try {
         const { error } = await supabase
           .from('Enrollment')
@@ -140,12 +165,10 @@ const CourseDetail = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container py-8">
-        {/* Back */}
         <Link to="/courses" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
           <ArrowLeft className="h-4 w-4" /> Back to Courses
         </Link>
 
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -153,42 +176,43 @@ const CourseDetail = () => {
         >
           <div className="lg:col-span-2 space-y-4">
             <div className="flex flex-wrap gap-2">
-              {course.tags?.map((tag) => (
-                <span key={tag} className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">{tag}</span>
+              {course.tags?.split(',').map((tag) => (
+                <span key={tag} className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">{tag.trim()}</span>
               ))}
             </div>
             <h1 className="font-heading text-3xl lg:text-4xl font-bold text-foreground">{course.title}</h1>
             <p className="text-muted-foreground leading-relaxed">{course.description}</p>
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1.5"><Clock className="h-4 w-4" />{course.duration}</span>
-              <span className="flex items-center gap-1.5"><BookOpen className="h-4 w-4" />{course.totalLessons} lessons</span>
-              <span className="flex items-center gap-1.5"><Users className="h-4 w-4" />{course.enrolledCount} enrolled</span>
+              <span className="flex items-center gap-1.5"><Clock className="h-4 w-4" />{course.duration || "0m"}</span>
+              <span className="flex items-center gap-1.5"><BookOpen className="h-4 w-4" />{lessons.length} lessons</span>
+              <span className="flex items-center gap-1.5"><Users className="h-4 w-4" />{course.viewsCount || 0} enrolled</span>
               <span className="flex items-center gap-1.5">
                 <Star className="h-4 w-4 fill-accent text-accent" />
                 {avgRating} ({reviews.length} reviews)
               </span>
             </div>
             <div className="flex items-center gap-3 pt-2">
-              <img src={course.instructorAvatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=instructor"} alt={course.instructor} className="h-10 w-10 rounded-full object-cover" />
+              <img src={(course as any).responsibleAdmin?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=instructor"} alt={(course as any).responsibleAdmin?.name} className="h-10 w-10 rounded-full object-cover" />
               <div>
-                <p className="text-sm font-medium text-foreground">{course.instructor || "Platform Instructor"}</p>
+                <p className="text-sm font-medium text-foreground">{(course as any).responsibleAdmin?.name || "Platform Instructor"}</p>
                 <p className="text-xs text-muted-foreground">Course Instructor</p>
               </div>
             </div>
           </div>
 
-          {/* Side card */}
           <div className="bg-card rounded-xl border border-border p-6 shadow-card space-y-5 h-fit">
             <img src={course.image} alt={course.title} className="w-full h-40 rounded-lg object-cover" />
-            {(isEnrolled || (course.progress && course.progress > 0)) && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Progress</span>
-                  <span className="font-semibold text-foreground">{course.progress || 0}%</span>
-                </div>
-                <Progress value={course.progress || 0} className="h-2.5" />
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Progress</span>
+                <span className="font-semibold text-foreground">{course.progress || 0}%</span>
               </div>
-            )}
+              <Progress value={course.progress || 0} className="h-2.5" />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{completedCount} completed</span>
+                <span>{lessons.length - completedCount} remaining</span>
+              </div>
+            </div>
             <Button
               onClick={handleStartLearning}
               className="w-full bg-gradient-hero text-primary-foreground font-bold text-base hover:opacity-90"
@@ -196,14 +220,13 @@ const CourseDetail = () => {
             >
               {!isAuthenticated && <LogIn className="h-4 w-4 mr-2" />}
               {isAuthenticated
-                ? (isEnrolled ? "Continue Learning" : "Enroll Now")
-                : "Sign in to Enroll"
+                ? ((course.progress || 0) > 0 ? "Continue Learning" : "Start Learning Now")
+                : "Sign in to Start Learning"
               }
             </Button>
           </div>
         </motion.div>
 
-        {/* Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="bg-muted/50">
             <TabsTrigger value="overview">Course Overview</TabsTrigger>
@@ -216,6 +239,7 @@ const CourseDetail = () => {
               <div className="space-y-2">
                 {lessons.map((lesson, i) => {
                   const TypeIcon = typeIcons[lesson.type] || BookOpen;
+                  const completed = (lesson as any).completed;
                   return (
                     <motion.div
                       key={lesson.id}
@@ -224,19 +248,19 @@ const CourseDetail = () => {
                       transition={{ delay: i * 0.05 }}
                       className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors group"
                     >
-                      {lesson.completed ? (
+                      {completed ? (
                         <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
                       ) : (
                         <Circle className="h-5 w-5 text-muted-foreground/40 shrink-0" />
                       )}
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <TypeIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className={`text-sm font-medium truncate ${lesson.completed ? "text-muted-foreground" : "text-foreground"}`}>
+                        <span className={`text-sm font-medium truncate ${completed ? "text-muted-foreground" : "text-foreground"}`}>
                           {lesson.title}
                         </span>
                       </div>
                       <span className="text-xs text-muted-foreground uppercase tracking-wide">{lesson.type}</span>
-                      <span className="text-xs text-muted-foreground">{lesson.duration}</span>
+                      <span className="text-xs text-muted-foreground">{lesson.duration}m</span>
                     </motion.div>
                   );
                 })}
@@ -274,7 +298,7 @@ const CourseDetail = () => {
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">{review.text}</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">{review.date}</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">{new Date(review.createdAt).toLocaleDateString()}</p>
                     </div>
                   </div>
                 ))}
