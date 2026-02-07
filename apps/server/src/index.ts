@@ -25,6 +25,11 @@ app.use(express.json());
 // Routes
 app.use('/api', routes);
 
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: `Path not found: ${req.originalUrl}` });
+});
+
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error('Unhandled error:', err);

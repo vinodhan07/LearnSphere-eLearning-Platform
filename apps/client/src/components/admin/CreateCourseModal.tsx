@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -48,6 +48,9 @@ export default function CreateCourseModal({ open, onOpenChange, onSuccess }: Cre
             <DialogContent className="sm:max-w-[425px] bg-slate-900 border-white/20 text-white">
                 <DialogHeader>
                     <DialogTitle>Create New Course</DialogTitle>
+                    <DialogDescription>
+                        Give your new course a title. You can add more details later.
+                    </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 py-4">
                     <div className="space-y-2">

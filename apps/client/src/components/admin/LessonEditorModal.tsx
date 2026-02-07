@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogFooter
@@ -98,6 +99,9 @@ const LessonEditorModal = ({ isOpen, onClose, courseId, lesson, onSave }: Lesson
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>{lesson?.id ? "Edit Lesson" : "Add Lesson"}</DialogTitle>
+                    <DialogDescription>
+                        {lesson?.id ? "Update the details and content of your lesson." : "Add a new lesson to your course."}
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">

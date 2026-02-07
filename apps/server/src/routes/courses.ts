@@ -17,19 +17,30 @@ import { requireAnyRole } from '../middleware/rbac.js';
 
 const router = Router();
 
-// Public routes (with optional auth for visibility filtering)
+// --- Specific/Static Routes First ---
+
+// User-specific courses
+router.get('/my/enrolled', authenticate, listMyCourses);
+
+// Admin listing
+router.get('/admin/list', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), listAdminCourses);
+
+// --- Public/General Routes ---
+
 router.get('/', optionalAuthenticate, listCourses);
+
+// --- Dynamic ID Routes Last ---
+
 router.get('/:id', optionalAuthenticate, getCourse);
 
-// Protected routes - require authentication
-router.get('/my/enrolled', authenticate, listMyCourses);
+// --- Other Protected Routes ---
+
 router.post('/:id/enroll', authenticate, enrollInCourse);
 
-// Admin routes - require INSTRUCTOR or ADMIN role
+// Admin-only actions on specific courses
 router.post('/', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), createCourse);
 router.put('/:id', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), updateCourse);
 router.delete('/:id', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), deleteCourse);
-router.get('/admin/list', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), listAdminCourses);
 router.get('/:id/attendees', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), getCourseAttendees);
 router.post('/:id/invite', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), inviteAttendee);
 router.post('/:id/contact', authenticate, requireAnyRole('INSTRUCTOR', 'ADMIN'), contactAttendees);

@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import * as api from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import CreateCourseModal from "@/components/admin/CreateCourseModal";
 
 const statusColors: Record<string, string> = {
@@ -48,6 +49,7 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
 
   const fetchCourses = async () => {
     try {
@@ -66,8 +68,10 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    fetchCourses();
-  }, []);
+    if (isAuthenticated) {
+      fetchCourses();
+    }
+  }, [isAuthenticated]);
 
   const filteredCourses = courses.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase())
@@ -90,21 +94,21 @@ const AdminDashboard = () => {
   const CourseActions = ({ course }: { course: Course }) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-white/10 text-gray-400">
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-muted text-muted-foreground">
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="bg-slate-900 border-white/10 text-white">
-        <DropdownMenuItem className="gap-2 focus:bg-white/10 focus:text-white" onClick={() => navigate(`/admin/course/${course.id}`)}>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem className="gap-2" onClick={() => navigate(`/admin/course/${course.id}`)}>
           <Pencil className="h-3.5 w-3.5" /> Edit
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 focus:bg-white/10 focus:text-white" onClick={() => handleShare(course)}>
+        <DropdownMenuItem className="gap-2" onClick={() => handleShare(course)}>
           <Share2 className="h-3.5 w-3.5" /> Share
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 focus:bg-white/10 focus:text-white" onClick={() => window.open(`/courses/${course.id}`, '_blank')}>
+        <DropdownMenuItem className="gap-2" onClick={() => window.open(`/courses/${course.id}`, '_blank')}>
           <Eye className="h-3.5 w-3.5" /> Preview
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 focus:bg-white/10 focus:text-white" onClick={() => {
+        <DropdownMenuItem className="gap-2" onClick={() => {
           toast({ title: "AI Review Summary", description: "This course is highly rated! Students love the practical examples and the AI explanations." });
         }}>
           <MessageSquare className="h-3.5 w-3.5" /> AI Review Summary
@@ -117,21 +121,21 @@ const AdminDashboard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white selection:bg-purple-500/30">
+    <div className="min-h-screen bg-background text-foreground selection:bg-orange-500/30">
       <Navbar />
 
       <main className="container max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-10">
           <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
               Course Dashboard
             </h1>
-            <p className="text-gray-400 mt-1">Manage, organize, and track your content performance</p>
+            <p className="text-muted-foreground mt-1">Manage, organize, and track your content performance</p>
           </div>
           <Button
             onClick={() => setIsCreateModalOpen(true)}
-            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/20 gap-2 h-11 px-6 font-semibold"
+            className="bg-gradient-accent hover:opacity-90 shadow-lg shadow-orange-500/20 gap-2 h-11 px-6 font-semibold text-accent-foreground"
           >
             <Plus className="h-5 w-5" /> Create Course
           </Button>
@@ -140,29 +144,29 @@ const AdminDashboard = () => {
         {/* AI Insights Section */}
         <div className="mb-10">
           <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="h-5 w-5 text-purple-400" />
+            <Sparkles className="h-5 w-5 text-orange-400" />
             <h2 className="text-xl font-bold">Instructor AI Insights</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 relative overflow-hidden group">
+            <div className="bg-card border border-border rounded-2xl p-6 relative overflow-hidden group shadow-sm">
               <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                <HelpCircle className="h-24 w-24 text-purple-500" />
+                <HelpCircle className="h-24 w-24 text-orange-500" />
               </div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Hardest Lesson</p>
-              <h3 className="text-xl font-bold text-white mb-2">Advanced State Patterns</h3>
-              <p className="text-sm text-gray-400 line-clamp-2">Students are spending 45% more time here than average.</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Hardest Lesson</p>
+              <h3 className="text-xl font-bold text-foreground mb-2">Advanced State Patterns</h3>
+              <p className="text-sm text-muted-foreground line-clamp-2">Students are spending 45% more time here than average.</p>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 relative overflow-hidden group">
               <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                <AlertCircle className="h-24 w-24 text-pink-500" />
+                <AlertCircle className="h-24 w-24 text-orange-500" />
               </div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Most Failed Quiz</p>
-              <h3 className="text-xl font-bold text-white mb-2">React Foundations</h3>
-              <p className="text-sm text-gray-400">12 students retook this quiz more than twice.</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Most Failed Quiz</p>
+              <h3 className="text-xl font-bold text-foreground mb-2">React Foundations</h3>
+              <p className="text-sm text-muted-foreground">12 students retook this quiz more than twice.</p>
             </div>
-            <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-2xl p-6">
-              <p className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-1">AI Recommendation</p>
-              <p className="text-sm text-gray-300 leading-relaxed italic">"Consider adding a practical coding exercise to Lesson 3 to improve retention of context API concepts."</p>
+            <div className="bg-gradient-to-br from-orange-500/5 to-amber-500/5 border border-orange-500/10 rounded-2xl p-6 shadow-sm">
+              <p className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-1">AI Recommendation</p>
+              <p className="text-sm text-foreground/80 leading-relaxed italic">"Consider adding a practical coding exercise to Lesson 3 to improve retention of context API concepts."</p>
             </div>
           </div>
         </div>
@@ -175,15 +179,15 @@ const AdminDashboard = () => {
               placeholder="Search courses by name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-11 h-11 bg-white/5 border-white/10 focus:border-purple-500/50 transition-all text-white placeholder:text-gray-500"
+              className="pl-11 h-11 bg-card border-border focus:border-orange-500/50 transition-all text-foreground placeholder:text-muted-foreground"
             />
           </div>
-          <div className="flex bg-white/5 rounded-xl p-1 border border-white/10 self-start sm:self-center">
+          <div className="flex bg-muted rounded-xl p-1 border border-border self-start sm:self-center">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setView("kanban")}
-              className={`gap-2 h-9 px-4 rounded-lg transition-all ${view === "kanban" ? "bg-white/10 text-white shadow-sm" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
+              className={`gap-2 h-9 px-4 rounded-lg transition-all ${view === "kanban" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-card/50"}`}
             >
               <LayoutGrid className="h-4 w-4" /> Kanban
             </Button>
@@ -191,7 +195,7 @@ const AdminDashboard = () => {
               variant="ghost"
               size="sm"
               onClick={() => setView("list")}
-              className={`gap-2 h-9 px-4 rounded-lg transition-all ${view === "list" ? "bg-white/10 text-white shadow-sm" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
+              className={`gap-2 h-9 px-4 rounded-lg transition-all ${view === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-card/50"}`}
             >
               <List className="h-4 w-4" /> List
             </Button>
@@ -200,8 +204,8 @@ const AdminDashboard = () => {
 
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 space-y-4">
-            <Loader2 className="h-10 w-10 text-purple-500 animate-spin" />
-            <p className="text-gray-400 font-medium leading-relaxed">Loading your dashboard...</p>
+            <Loader2 className="h-10 w-10 text-orange-500 animate-spin" />
+            <p className="text-muted-foreground font-medium leading-relaxed">Loading your dashboard...</p>
           </div>
         ) : (
           <AnimatePresence mode="wait">
@@ -214,13 +218,13 @@ const AdminDashboard = () => {
                 className="grid lg:grid-cols-2 gap-8"
               >
                 {(["draft", "published"] as const).map((status) => (
-                  <div key={status} className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+                  <div key={status} className="bg-muted/30 border border-border/50 rounded-2xl p-6">
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-3">
-                        <Badge variant="outline" className={`px-3 py-1 uppercase tracking-wider text-[10px] font-bold ${statusColors[status]}`}>
+                        <Badge variant="outline" className={`px-3 py-1 uppercase tracking-wider text-[10px] font-bold bg-background/50 ${statusColors[status]}`}>
                           {status}
                         </Badge>
-                        <span className="text-sm text-gray-500 font-medium">
+                        <span className="text-sm text-muted-foreground font-medium">
                           {grouped[status].length} {grouped[status].length === 1 ? 'Course' : 'Courses'}
                         </span>
                       </div>
@@ -234,22 +238,22 @@ const AdminDashboard = () => {
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: i * 0.05 }}
-                          className="group relative bg-white/5 hover:bg-white/[0.08] rounded-xl border border-white/5 p-5 transition-all duration-300 hover:border-white/10"
+                          className="group relative bg-card hover:bg-card/80 rounded-xl border border-border p-5 transition-all duration-300 shadow-sm hover:shadow-md"
                         >
                           <div className="flex flex-col gap-4">
                             <div className="flex items-start justify-between">
                               <div className="space-y-1 pr-8">
-                                <h3 className="font-bold text-base text-white group-hover:text-purple-400 transition-colors leading-tight">
+                                <h3 className="font-bold text-base text-foreground group-hover:text-orange-500 transition-colors leading-tight">
                                   {course.title}
                                 </h3>
                                 <div className="flex flex-wrap gap-1.5 pt-1">
                                   {course.tags.map((tag) => (
-                                    <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400 border border-white/5">
+                                    <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
                                       {tag}
                                     </span>
                                   ))}
                                   {course.tags.length === 0 && (
-                                    <span className="text-[10px] text-gray-600 italic">No tags</span>
+                                    <span className="text-[10px] text-muted-foreground italic">No tags</span>
                                   )}
                                 </div>
                               </div>
@@ -258,25 +262,25 @@ const AdminDashboard = () => {
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5 mt-auto">
+                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border mt-auto">
                               <div className="flex flex-col gap-1">
-                                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Views</span>
-                                <div className="flex items-center gap-1.5 text-gray-300">
-                                  <EyeIcon className="h-3 w-3 text-purple-400" />
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Views</span>
+                                <div className="flex items-center gap-1.5 text-foreground">
+                                  <EyeIcon className="h-3 w-3 text-orange-500" />
                                   <span className="text-sm font-semibold">{course.viewsCount || 0}</span>
                                 </div>
                               </div>
                               <div className="flex flex-col gap-1">
-                                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Lessons</span>
-                                <div className="flex items-center gap-1.5 text-gray-300">
-                                  <BookOpen className="h-3 w-3 text-blue-400" />
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Lessons</span>
+                                <div className="flex items-center gap-1.5 text-foreground">
+                                  <BookOpen className="h-3 w-3 text-blue-500" />
                                   <span className="text-sm font-semibold">{course.lessonsCount || 0}</span>
                                 </div>
                               </div>
                               <div className="flex flex-col gap-1">
-                                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Time</span>
-                                <div className="flex items-center gap-1.5 text-gray-300">
-                                  <Clock className="h-3 w-3 text-pink-400" />
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Time</span>
+                                <div className="flex items-center gap-1.5 text-foreground">
+                                  <Clock className="h-3 w-3 text-amber-500" />
                                   <span className="text-sm font-semibold">{course.totalDuration || 0}m</span>
                                 </div>
                               </div>
@@ -286,8 +290,8 @@ const AdminDashboard = () => {
                       ))}
 
                       {grouped[status].length === 0 && (
-                        <div className="py-12 px-4 border border-dashed border-white/10 rounded-xl text-center">
-                          <p className="text-sm text-gray-500">No courses in category</p>
+                        <div className="py-12 px-4 border border-dashed border-border rounded-xl text-center">
+                          <p className="text-sm text-muted-foreground">No courses in category</p>
                         </div>
                       )}
                     </div>
@@ -300,50 +304,50 @@ const AdminDashboard = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden shadow-2xl"
+                className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm"
               >
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-white/10 bg-white/[0.02]">
-                        <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Course</th>
-                        <th className="text-left text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Status</th>
-                        <th className="text-center text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Views</th>
-                        <th className="text-center text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Lessons</th>
-                        <th className="text-center text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Duration</th>
-                        <th className="text-right text-[11px] font-bold text-gray-500 uppercase tracking-widest py-4 px-6">Actions</th>
+                      <tr className="border-b border-border bg-muted/50">
+                        <th className="text-left text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Course</th>
+                        <th className="text-left text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Status</th>
+                        <th className="text-center text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Views</th>
+                        <th className="text-center text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Lessons</th>
+                        <th className="text-center text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Duration</th>
+                        <th className="text-right text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5">
+                    <tbody className="divide-y divide-border">
                       {filteredCourses.map((course) => (
-                        <tr key={course.id} className="group hover:bg-white/[0.03] transition-colors">
+                        <tr key={course.id} className="group hover:bg-muted/30 transition-colors">
                           <td className="py-4 px-6">
                             <div className="flex flex-col">
-                              <span className="text-sm font-bold text-white group-hover:text-purple-400 transition-colors">
+                              <span className="text-sm font-bold text-foreground group-hover:text-orange-500 transition-colors">
                                 {course.title}
                               </span>
                               <div className="flex gap-2 mt-1.5">
                                 {course.tags.slice(0, 3).map((tag) => (
-                                  <span key={tag} className="text-[10px] text-gray-500">#{tag}</span>
+                                  <span key={tag} className="text-[10px] text-muted-foreground">#{tag}</span>
                                 ))}
                                 {course.tags.length > 3 && (
-                                  <span className="text-[10px] text-gray-600">+{course.tags.length - 3} more</span>
+                                  <span className="text-[10px] text-muted-foreground/60">+{course.tags.length - 3} more</span>
                                 )}
                               </div>
                             </div>
                           </td>
                           <td className="py-4 px-6">
-                            <Badge variant="outline" className={`px-2 py-0 text-[10px] uppercase font-bold border-0 ${course.published ? 'text-emerald-400' : 'text-gray-500'}`}>
+                            <Badge variant="outline" className={`px-2 py-0 text-[10px] uppercase font-bold border-0 ${course.published ? 'text-emerald-600' : 'text-muted-foreground'}`}>
                               {course.published ? 'Published' : 'Draft'}
                             </Badge>
                           </td>
                           <td className="py-4 px-6 text-center">
-                            <span className="text-sm font-medium text-gray-300">{course.viewsCount || 0}</span>
+                            <span className="text-sm font-medium text-foreground">{course.viewsCount || 0}</span>
                           </td>
                           <td className="py-4 px-6 text-center">
-                            <span className="text-sm font-medium text-gray-300">{course.lessonsCount || 0}</span>
+                            <span className="text-sm font-medium text-foreground">{course.lessonsCount || 0}</span>
                           </td>
-                          <td className="py-4 px-6 text-center text-sm font-medium text-gray-300">
+                          <td className="py-4 px-6 text-center text-sm font-medium text-foreground">
                             {course.totalDuration || 0} min
                           </td>
                           <td className="py-4 px-6 text-right">
@@ -356,7 +360,7 @@ const AdminDashboard = () => {
 
                   {filteredCourses.length === 0 && (
                     <div className="py-20 text-center">
-                      <p className="text-gray-500 font-medium">No courses found matching your search</p>
+                      <p className="text-muted-foreground font-medium">No courses found matching your search</p>
                     </div>
                   )}
                 </div>
@@ -371,7 +375,7 @@ const AdminDashboard = () => {
         onOpenChange={setIsCreateModalOpen}
         onSuccess={fetchCourses}
       />
-    </div>
+    </div >
   );
 };
 

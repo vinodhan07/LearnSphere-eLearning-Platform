@@ -10,12 +10,12 @@ import Navbar from "@/components/layout/Navbar";
 import { motion } from "framer-motion";
 
 export default function Profile() {
-    const { user } = useAuth();
+    const { user, isAuthenticated } = useAuth();
     const [enrollmentCount, setEnrollmentCount] = useState(0);
 
     useEffect(() => {
         async function fetchStats() {
-            if (!user) return;
+            if (!user || !isAuthenticated) return;
             try {
                 const data = await api.get<any[]>('/courses/my/enrolled');
                 setEnrollmentCount(data.length);
@@ -23,8 +23,10 @@ export default function Profile() {
                 console.error('Failed to fetch stats:', error);
             }
         }
-        fetchStats();
-    }, [user]);
+        if (isAuthenticated) {
+            fetchStats();
+        }
+    }, [user, isAuthenticated]);
 
     if (!user) return null;
 

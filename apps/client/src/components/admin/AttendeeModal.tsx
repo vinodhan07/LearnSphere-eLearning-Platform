@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -98,6 +99,9 @@ const AttendeeModal = ({ isOpen, onClose, courseId }: AttendeeModalProps) => {
             <DialogContent className="sm:max-w-[600px] h-[600px] flex flex-col">
                 <DialogHeader>
                     <DialogTitle>Course Attendees</DialogTitle>
+                    <DialogDescription>
+                        View and manage learners enrolled in this course or invite new ones.
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex gap-2 my-4">
