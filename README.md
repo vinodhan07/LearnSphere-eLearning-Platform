@@ -54,4 +54,3 @@ This project follows a professional monorepo structure for scalability and maint
 ## ⚖️ License
 MIT
 
-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
