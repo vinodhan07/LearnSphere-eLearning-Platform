@@ -176,7 +176,7 @@ const CourseDetail = () => {
         >
           <div className="lg:col-span-2 space-y-4">
             <div className="flex flex-wrap gap-2">
-              {course.tags?.split(',').map((tag) => (
+              {course.tags?.map((tag) => (
                 <span key={tag} className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">{tag.trim()}</span>
               ))}
             </div>
