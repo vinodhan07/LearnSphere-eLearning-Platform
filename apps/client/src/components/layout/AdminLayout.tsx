@@ -34,6 +34,7 @@ const AdminLayout: React.FC = () => {
     const navItems = [
         { label: "Courses", path: "/courses", icon: BookOpen },
         { label: "Reports", path: "/reports", icon: BarChart3 },
+        { label: "My Courses", path: "/my-courses", icon: GraduationCap },
     ];
 
     const getInitials = (name: string) => {
@@ -43,43 +44,43 @@ const AdminLayout: React.FC = () => {
     return (
         <div className="min-h-screen bg-background flex flex-col">
             {/* Top Navbar */}
-            <nav className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
-                <div className="container flex h-16 items-center justify-between">
+            <nav className="sticky top-0 z-50 border-b border-border bg-background backdrop-blur-xl">
+                <div className="container flex h-16 items-center justify-between relative">
                     <div className="flex items-center gap-8">
                         <Link to="/" className="flex items-center gap-2.5 group">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500 shadow-lg shadow-orange-500/20">
-                                <GraduationCap className="h-5 w-5 text-white" />
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-hero">
+                                <GraduationCap className="h-5 w-5 text-primary-foreground" />
                             </div>
                             <span className="font-heading text-xl font-bold text-foreground">
-                                Learn<span className="text-orange-500">Sphere</span>
+                                Learn<span className="text-accent">Sphere</span>
                             </span>
                         </Link>
+                    </div>
 
-                        {/* Desktop Nav Links */}
-                        <div className="hidden md:flex items-center gap-1">
-                            {navItems.map((item) => {
-                                const isActive = location.pathname === item.path || (item.path !== "/admin" && location.pathname.startsWith(item.path));
-                                return (
-                                    <Link key={item.path} to={item.path}>
-                                        <Button
-                                            variant={isActive ? "secondary" : "ghost"}
-                                            size="sm"
-                                            className={`gap-2 font-medium ${isActive ? "text-orange-600 bg-orange-500/10" : "text-muted-foreground"}`}
-                                        >
-                                            <item.icon className="h-4 w-4" />
-                                            {item.label}
-                                        </Button>
-                                    </Link>
-                                );
-                            })}
-                        </div>
+                    {/* Desktop Nav Links - Centered */}
+                    <div className="hidden md:flex items-center gap-2 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                        {navItems.map((item) => {
+                            const isActive = location.pathname === item.path || (item.path !== "/admin" && location.pathname.startsWith(item.path));
+                            return (
+                                <Link key={item.path} to={item.path}>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className={`gap-2 font-medium rounded-full px-4 transition-all duration-200 ${isActive ? "bg-orange-100 text-orange-600 hover:bg-orange-200 hover:text-orange-700" : "text-muted-foreground hover:text-foreground"}`}
+                                    >
+                                        <item.icon className="h-4 w-4" />
+                                        {item.label}
+                                    </Button>
+                                </Link>
+                            );
+                        })}
                     </div>
 
                     <div className="hidden md:flex items-center gap-4">
-                        <Link to="/">
-                            <Button variant="outline" size="sm" className="gap-2 border-orange-500/30 text-orange-600 hover:bg-orange-500/5 hover:text-orange-600">
-                                <Eye className="h-4 w-4" />
-                                Learner View
+                        <Link to="/admin">
+                            <Button variant="outline" size="sm" className="gap-2 border-border text-muted-foreground hover:text-foreground">
+                                <LayoutDashboard className="h-4 w-4" />
+                                Instructor Panel
                             </Button>
                         </Link>
 
@@ -89,9 +90,9 @@ const AdminLayout: React.FC = () => {
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="sm" className="gap-2 px-2 hover:bg-muted/50">
-                                        <Avatar className="h-8 w-8 border border-border">
+                                        <Avatar className="h-7 w-7">
                                             <AvatarImage src={user.avatar || undefined} alt={user.name} />
-                                            <AvatarFallback className="text-xs bg-orange-500 text-white font-bold">
+                                            <AvatarFallback className="text-xs bg-primary text-primary-foreground">
                                                 {getInitials(user.name)}
                                             </AvatarFallback>
                                         </Avatar>
@@ -153,7 +154,7 @@ const AdminLayout: React.FC = () => {
                                 ))}
                                 <div className="border-t border-border pt-4 mt-2 flex flex-col gap-3">
                                     <Link to="/" onClick={() => setMobileOpen(false)}>
-                                        <Button variant="outline" className="w-full gap-2 border-orange-500/30 text-orange-600">
+                                        <Button variant="outline" className="w-full gap-2">
                                             <Eye className="h-4 w-4" />
                                             Learner View
                                         </Button>

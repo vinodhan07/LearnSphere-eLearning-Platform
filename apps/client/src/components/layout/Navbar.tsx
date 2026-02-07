@@ -58,8 +58,8 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
-      <div className="container flex h-16 items-center justify-between">
+    <nav className="sticky top-0 z-50 border-b border-border bg-background backdrop-blur-xl">
+      <div className="container flex h-16 items-center justify-between relative">
         <Link to="/" className="flex items-center gap-2.5 group">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-hero">
             <GraduationCap className="h-5 w-5 text-primary-foreground" />
@@ -69,19 +69,20 @@ const Navbar = () => {
           </span>
         </Link>
 
-        {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-1">
+        {/* Desktop Nav - Centered */}
+        <div className="hidden md:flex items-center gap-2 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           {links.map((link) => {
             // Hide auth-required links if not authenticated
             if ('requiresAuth' in link && link.requiresAuth && !isAuthenticated) {
               return null;
             }
+            const isActive = location.pathname === link.to;
             return (
               <Link key={link.to} to={link.to}>
                 <Button
-                  variant={location.pathname === link.to ? "secondary" : "ghost"}
+                  variant="ghost"
                   size="sm"
-                  className="gap-2 font-medium"
+                  className={`gap-2 font-medium rounded-full px-4 transition-all duration-200 ${isActive ? "bg-orange-100 text-orange-600 hover:bg-orange-200 hover:text-orange-700" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <link.icon className="h-4 w-4" />
                   {link.label}
@@ -95,7 +96,7 @@ const Navbar = () => {
           {/* Show Instructor Panel for INSTRUCTOR+ */}
           {!isAdmin && isAuthenticated && hasMinimumRole("INSTRUCTOR") && (
             <Link to="/admin">
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="gap-2 border-border text-muted-foreground hover:text-foreground">
                 <LayoutDashboard className="h-4 w-4" />
                 Instructor Panel
               </Button>
@@ -107,7 +108,7 @@ const Navbar = () => {
             <Link to="/admin">
               <Button variant="outline" size="sm" className="gap-2">
                 <LayoutDashboard className="h-4 w-4" />
-                Admin Panel
+                Instructor Panel
               </Button>
             </Link>
           )}

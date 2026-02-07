@@ -45,7 +45,7 @@ export default function CreateCourseModal({ open, onOpenChange, onSuccess }: Cre
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px] bg-slate-900 border-white/20 text-white">
+            <DialogContent className="sm:max-w-[425px] bg-card border-border text-card-foreground">
                 <DialogHeader>
                     <DialogTitle>Create New Course</DialogTitle>
                     <DialogDescription>
@@ -54,13 +54,13 @@ export default function CreateCourseModal({ open, onOpenChange, onSuccess }: Cre
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="title" className="text-gray-200">Course Title</Label>
+                        <Label htmlFor="title" className="text-foreground">Course Title</Label>
                         <Input
                             id="title"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="e.g. Advanced React Patterns"
-                            className="bg-white/10 border-white/20 text-white focus:border-purple-400"
+                            className="bg-background border-input text-foreground focus:ring-orange-500 focus:border-orange-500"
                             required
                             disabled={isSubmitting}
                         />
@@ -70,14 +70,14 @@ export default function CreateCourseModal({ open, onOpenChange, onSuccess }: Cre
                             type="button"
                             variant="ghost"
                             onClick={() => onOpenChange(false)}
-                            className="text-gray-300 hover:text-white hover:bg-white/10"
+                            className="text-muted-foreground hover:text-foreground"
                             disabled={isSubmitting}
                         >
                             Cancel
                         </Button>
                         <Button
                             type="submit"
-                            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+                            className="bg-orange-500 hover:bg-orange-600 text-white"
                             disabled={isSubmitting || !title.trim()}
                         >
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Course'}
