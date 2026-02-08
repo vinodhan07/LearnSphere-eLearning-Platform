@@ -6,7 +6,7 @@ interface AuthContextType {
     user: User | null;
     isLoading: boolean;
     isAuthenticated: boolean;
-    login: (data: LoginRequest) => Promise<void>;
+    login: (data: LoginRequest) => Promise<User | null>;
     register: (data: RegisterRequest) => Promise<void>;
     googleLogin: (credential: string) => Promise<void>;
     logout: () => Promise<void>;
@@ -28,57 +28,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    // If profile is null after login, check Supabase table name (User vs user) and RLS (e.g. auth.uid() = id).
     const fetchUserProfile = async (uid: string) => {
-        const { data, error } = await supabase
-            .from('User')
-            .select('*')
-            .eq('id', uid)
-            .maybeSingle();
+        try {
+            const { data, error } = await supabase
+                .from('User')
+                .select('*')
+                .eq('id', uid)
+                .maybeSingle();
 
-        if (error) {
-            console.error('Error fetching user profile:', error.message);
+            if (error) {
+                if (error.message && error.message.includes('AbortError')) return null;
+                console.error('Error fetching user profile:', error.message);
+                return null;
+            }
+            return data as User | null;
+        } catch (err) {
             return null;
         }
-        return data as User | null;
     };
 
     // Check for existing session on mount
     useEffect(() => {
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session) {
-                fetchUserProfile(session.user.id).then(profile => {
-                    setUser(profile);
-                    setIsLoading(false);
-                });
-            } else {
-                setUser(null);
-                setIsLoading(false);
-            }
-        });
+        let mounted = true;
 
-        // Listen for changes
+        const initSession = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session && mounted) {
+                    const profile = await fetchUserProfile(session.user.id);
+                    if (mounted) setUser(profile);
+                } else if (mounted) {
+                    setUser(null);
+                }
+            } catch (error) {
+                console.error('Error checking session:', error);
+                if (mounted) setUser(null);
+            } finally {
+                if (mounted) setIsLoading(false);
+            }
+        };
+
+        initSession();
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             if (session) {
                 const profile = await fetchUserProfile(session.user.id);
-                setUser(profile);
+                if (mounted) setUser(profile);
             } else {
-                setUser(null);
+                if (mounted) setUser(null);
             }
-            setIsLoading(false);
+            if (mounted) setIsLoading(false);
         });
 
-        return () => subscription.unsubscribe();
+        return () => {
+            mounted = false;
+            subscription.unsubscribe();
+        };
     }, []);
 
     const login = useCallback(async (data: LoginRequest) => {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
             email: data.email,
             password: data.password,
         });
 
         if (error) throw error;
-        // User state will be updated by onAuthStateChange listener
+
+        // Optimistically fetch profile to ensure state is ready before promise resolves
+        if (authData.session) {
+            const profile = await fetchUserProfile(authData.session.user.id);
+            setUser(profile);
+            setIsLoading(false);
+            return profile;
+        }
+        return null;
     }, []);
 
     const register = useCallback(async (data: RegisterRequest) => {

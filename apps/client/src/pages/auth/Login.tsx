@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +24,48 @@ export default function Login() {
     const { toast } = useToast();
 
     const from = (location.state as { from?: string })?.from || '/profile';
+
+    const handleRedirect = useCallback((role?: string) => {
+        if (role === 'ADMIN') {
+            navigate('/admin-dashboard', { replace: true });
+        } else if (role === 'INSTRUCTOR') {
+            navigate('/instructor-dashboard', { replace: true });
+        } else if (role === 'LEARNER') {
+            navigate('/learner-dashboard', { replace: true });
+        } else {
+            navigate('/my-courses', { replace: true });
+        }
+    }, [navigate]);
+
+    const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
+        setIsSubmitting(true);
+        try {
+            await googleLogin(response.credential);
+            const { data: { session } } = await supabase.auth.getSession();
+            let role: string | undefined;
+            if (session) {
+                const { data: profile } = await supabase
+                    .from('User')
+                    .select('role')
+                    .eq('id', session.user.id)
+                    .maybeSingle();
+                role = profile?.role;
+            }
+            handleRedirect(role);
+            toast({
+                title: 'Welcome!',
+                description: 'You have successfully signed in with Google.',
+            });
+        } catch (error) {
+            toast({
+                title: 'Google sign-in failed',
+                description: error instanceof Error ? error.message : 'Could not sign in with Google',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
+    }, [googleLogin, handleRedirect, toast]);
 
     // Load Google Identity Services script
     useEffect(() => {
@@ -61,39 +104,30 @@ export default function Login() {
                 text: 'continue_with',
             });
         }
-    }, [googleLoaded]);
-
-    const handleGoogleResponse = async (response: { credential: string }) => {
-        setIsSubmitting(true);
-        try {
-            await googleLogin(response.credential);
-            toast({
-                title: 'Welcome!',
-                description: 'You have successfully signed in with Google.',
-            });
-            navigate(from, { replace: true });
-        } catch (error) {
-            toast({
-                title: 'Google sign-in failed',
-                description: error instanceof Error ? error.message : 'Could not sign in with Google',
-                variant: 'destructive',
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
+    }, [googleLoaded, handleGoogleResponse]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSubmitting(true);
+        await performLogin(email, password);
+    };
 
+    const handleDemoLogin = async (demoEmail: string, demoPassword: string) => {
+        setEmail(demoEmail);
+        setPassword(demoPassword);
+        await performLogin(demoEmail, demoPassword);
+    };
+
+    const performLogin = async (loginEmail: string, loginPassword: string) => {
+        setIsSubmitting(true);
         try {
-            await login({ email, password });
+            // Login and get profile directly from context
+            const profile = await login({ email: loginEmail, password: loginPassword });
+            handleRedirect(profile?.role);
+
             toast({
                 title: 'Welcome back!',
                 description: 'You have successfully logged in.',
             });
-            navigate(from, { replace: true });
         } catch (error) {
             toast({
                 title: 'Login failed',
@@ -211,25 +245,25 @@ export default function Login() {
 
                     {/* Demo credentials */}
                     <div className="mt-8 pt-6 border-t border-border">
-                        <p className="text-xs text-muted-foreground text-center mb-3">Demo accounts:</p>
+                        <p className="text-xs text-muted-foreground text-center mb-3">Demo accounts (Click to auto-login):</p>
                         <div className="grid grid-cols-3 gap-2 text-xs">
                             <button
                                 type="button"
-                                onClick={() => { setEmail('admin.learnsphere@gmail.com'); setPassword('admin123'); }}
+                                onClick={() => handleDemoLogin('admin.learnsphere@gmail.com', 'admin123')}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
                             >
                                 Admin
                             </button>
                             <button
                                 type="button"
-                                onClick={() => { setEmail('instructor.learnsphere@gmail.com'); setPassword('instructor123'); }}
+                                onClick={() => handleDemoLogin('instructor.learnsphere@gmail.com', 'instructor123')}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
                             >
                                 Instructor
                             </button>
                             <button
                                 type="button"
-                                onClick={() => { setEmail('learner.learnsphere@gmail.com'); setPassword('learner123'); }}
+                                onClick={() => handleDemoLogin('learner.learnsphere@gmail.com', 'learner123')}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
                             >
                                 Learner
