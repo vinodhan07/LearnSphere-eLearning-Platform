@@ -7,8 +7,8 @@ import {
     createQuestion,
     updateQuestion,
     deleteQuestion
-} from '../controllers/quizzes.js';
-import { authenticate, requireAnyRole } from '../middleware/auth.js';
+} from '../controllers/quizzes';
+import { authenticate, requireAnyRole } from '../middleware/auth';
 
 const router = Router();
 

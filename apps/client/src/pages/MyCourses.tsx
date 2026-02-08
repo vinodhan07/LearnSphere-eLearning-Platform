@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabase";
+import * as api from "@/lib/api";
 import CourseCard from "@/components/courses/CourseCard";
 import ProfilePanel from "@/components/learner/ProfilePanel";
 import Navbar from "@/components/layout/Navbar";
@@ -18,25 +18,17 @@ const MyCourses = () => {
 
     const fetchMyCourses = async () => {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('Enrollment')
-        .select('*, course:Course(*)')
-        .eq('userId', user.id);
-
-      if (data) {
-        const myCourses = data.map((e: any) => ({
-          ...e.course,
-          progress: e.progress || 0,
-          enrollmentStatus: e.status
-        }));
-        setCourses(myCourses);
+      try {
+        const data = await api.getEnrolledCourses();
+        setCourses(data);
+      } catch (error) {
+        console.error("Failed to fetch enrolled courses:", error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     fetchMyCourses();
-
-    // Cleanup: In a real app, you might want to consider real-time subscriptions here
   }, [isAuthenticated, user?.id]);
 
   const filtered = courses.filter((c) =>

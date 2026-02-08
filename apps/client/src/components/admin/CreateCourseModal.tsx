@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import * as api from "@/lib/api";
 import { useAuth } from '@/contexts/AuthContext';
 
 interface CreateCourseModalProps {
@@ -25,22 +25,16 @@ export default function CreateCourseModal({ open, onOpenChange }: CreateCourseMo
 
         setIsSubmitting(true);
         try {
-            const { error } = await supabase
-                .from('Course')
-                .insert({
-                    title: title.trim(),
-                    responsibleAdminId: user.id,
-                    description: '',
-                    image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800',
-                    published: false,
-                    website: '',
-                    visibility: 'EVERYONE',
-                    accessRule: 'OPEN',
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                });
-
-            if (error) throw error;
+            await api.post('/courses', {
+                title: title.trim(),
+                responsibleAdminId: user.id,
+                description: '',
+                image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800',
+                published: false,
+                website: '',
+                visibility: 'EVERYONE',
+                accessRule: 'OPEN',
+            });
 
             toast({
                 title: 'Course created',

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/lib/supabase";
+import * as api from "@/lib/api";
 
 interface Question {
     id: string;
@@ -44,36 +44,26 @@ const QuizFlow = ({ lessonId, passScore, pointsReward, onComplete }: QuizFlowPro
 
         const fetchQuestions = async () => {
             setIsLoading(true);
-            const { data, error } = await supabase
-                .from('QuizQuestion')
-                .select('*')
-                .eq('quizId', lessonId)
-                .order('order', { ascending: true });
-
-            if (error) {
+            try {
+                const data = await api.getQuizQuestions(lessonId);
+                if (data) {
+                    const formatted = data.map((d: any) => ({
+                        id: d.id,
+                        question: d.question,
+                        options: Array.isArray(d.options) ? d.options : (typeof d.options === 'string' ? JSON.parse(d.options) : []),
+                        correctIndex: d.correctIndex
+                    } as Question));
+                    setQuestions(formatted);
+                }
+            } catch (error) {
                 console.error("Failed to load quiz questions:", error);
                 toast({ title: "Error", description: "Failed to load quiz questions", variant: "destructive" });
-            } else if (data) {
-                const formatted = data.map(d => ({
-                    id: d.id,
-                    question: d.question,
-                    options: Array.isArray(d.options) ? d.options : (typeof d.options === 'string' ? JSON.parse(d.options) : []),
-                    correctIndex: d.correctIndex
-                } as Question));
-                setQuestions(formatted);
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         };
 
         fetchQuestions();
-
-        const channel = supabase.channel(`quiz-${lessonId}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'QuizQuestion', filter: `quizId=eq.${lessonId}` }, fetchQuestions)
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
     }, [lessonId]);
 
     const startQuiz = () => {

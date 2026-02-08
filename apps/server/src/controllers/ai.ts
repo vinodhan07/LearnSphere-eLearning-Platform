@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { aiService } from '../services/ai.service.js';
-import { quizService } from '../services/quiz.service.js';
+import { aiService } from '../services/ai.service';
+import { quizService } from '../services/quiz.service';
 
 /**
  * POST /api/ai/explain

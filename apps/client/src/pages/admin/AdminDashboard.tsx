@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
-import type { Course } from "@/data/mockData";
+import type { Course } from "@/types/course";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 import ReviewSummaryModal from "@/components/admin/ReviewSummaryModal";
 import {
@@ -36,7 +36,6 @@ import { useToast } from "@/hooks/use-toast";
 import * as api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import CreateCourseModal from "@/components/admin/CreateCourseModal";
-import { supabase } from "@/lib/supabase";
 
 const statusColors: Record<string, string> = {
   draft: "bg-slate-500/10 text-slate-400 border-slate-500/20",
@@ -67,30 +66,18 @@ const AdminDashboard = () => {
     if (isAuthenticated && user) {
       const fetchCourses = async () => {
         setIsLoading(true);
-        const { data, error } = await supabase
-          .from('Course')
-          .select('*')
-          .eq('responsibleAdminId', user.id)
-          .order('createdAt', { ascending: false });
-
-        if (data) setCourses(data as any);
-        setIsLoading(false);
+        try {
+          const data = await api.getAdminCourses();
+          setCourses(data as any);
+        } catch (error) {
+          console.error("Failed to fetch admin courses:", error);
+          toast({ title: "Error", description: "Failed to load dashboard data", variant: "destructive" });
+        } finally {
+          setIsLoading(false);
+        }
       };
 
       fetchCourses();
-
-      // Real-time update for the current user's courses
-      const channel = supabase
-        .channel(`admin-courses-${user.id}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'Course',
-          filter: `responsibleAdminId=eq.${user.id}`
-        }, (payload) => {
-          fetchCourses();
-        })
-        .subscribe();
 
       // Fetch insights
       const fetchInsights = async () => {
@@ -102,12 +89,8 @@ const AdminDashboard = () => {
         }
       };
       fetchInsights();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, toast]);
 
   const filteredCourses = courses.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase())
@@ -135,12 +118,9 @@ const AdminDashboard = () => {
     if (!deleteCourseId) return;
     try {
       setIsDeleting(true);
-      const { error } = await supabase
-        .from('Course')
-        .delete()
-        .eq('id', deleteCourseId);
+      await api.del(`/courses/${deleteCourseId}`);
 
-      if (error) throw error;
+      setCourses(prev => prev.filter(c => c.id !== deleteCourseId));
       toast({ title: "Course Deleted", description: "The course has been permanently removed." });
     } catch (error) {
       toast({ title: "Error", description: "Failed to delete course", variant: "destructive" });
@@ -337,14 +317,14 @@ const AdminDashboard = () => {
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Views</span>
                                 <div className="flex items-center gap-1.5 text-foreground">
                                   <EyeIcon className="h-3 w-3 text-orange-500" />
-                                  <span className="text-sm font-semibold">{course.views || 0}</span>
+                                  <span className="text-sm font-semibold">{course.viewsCount || 0}</span>
                                 </div>
                               </div>
                               <div className="flex flex-col gap-1">
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Lessons</span>
                                 <div className="flex items-center gap-1.5 text-foreground">
                                   <BookOpen className="h-3 w-3 text-blue-500" />
-                                  <span className="text-sm font-semibold">{course.totalLessons || 0}</span>
+                                  <span className="text-sm font-semibold">{course.lessonsCount || 0}</span>
                                 </div>
                               </div>
                               <div className="flex flex-col gap-1">
@@ -412,10 +392,10 @@ const AdminDashboard = () => {
                             </Badge>
                           </td>
                           <td className="py-4 px-6 text-center">
-                            <span className="text-sm font-medium text-foreground">{course.views || 0}</span>
+                            <span className="text-sm font-medium text-foreground">{course.viewsCount || 0}</span>
                           </td>
                           <td className="py-4 px-6 text-center">
-                            <span className="text-sm font-medium text-foreground">{course.totalLessons || 0}</span>
+                            <span className="text-sm font-medium text-foreground">{course.lessonsCount || 0}</span>
                           </td>
                           <td className="py-4 px-6 text-center text-sm font-medium text-foreground">
                             {course.totalDuration || 0} min

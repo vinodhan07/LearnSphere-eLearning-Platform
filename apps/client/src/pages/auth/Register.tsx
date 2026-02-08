@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,6 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, UserPlus, BookOpen, GraduationCap, Users } from 'lucide-react';
 
-// Google Client ID - Replace with your own for production
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-
 export default function Register() {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -19,73 +16,13 @@ export default function Register() {
     const [role, setRole] = useState<'LEARNER' | 'INSTRUCTOR'>('LEARNER');
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [googleLoaded, setGoogleLoaded] = useState(false);
 
-    const { register, googleLogin } = useAuth();
+    const { register } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const { toast } = useToast();
 
     const from = (location.state as { from?: string })?.from || '/';
-
-    // Load Google Identity Services script
-    useEffect(() => {
-        if (!GOOGLE_CLIENT_ID) return;
-
-        const script = document.createElement('script');
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.async = true;
-        script.defer = true;
-        script.onload = () => setGoogleLoaded(true);
-        document.body.appendChild(script);
-
-        return () => {
-            document.body.removeChild(script);
-        };
-    }, []);
-
-    // Initialize Google Sign-In
-    useEffect(() => {
-        if (!googleLoaded || !GOOGLE_CLIENT_ID) return;
-
-        const google = (window as any).google;
-        if (!google) return;
-
-        google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: handleGoogleResponse,
-        });
-
-        const buttonDiv = document.getElementById('google-signup-button');
-        if (buttonDiv) {
-            google.accounts.id.renderButton(buttonDiv, {
-                theme: 'filled_blue',
-                size: 'large',
-                width: 320,
-                text: 'signup_with',
-            });
-        }
-    }, [googleLoaded]);
-
-    const handleGoogleResponse = async (response: { credential: string }) => {
-        setIsSubmitting(true);
-        try {
-            await googleLogin(response.credential);
-            toast({
-                title: 'Account created!',
-                description: 'Welcome to LearnSphere. Start exploring courses!',
-            });
-            navigate(from, { replace: true });
-        } catch (error) {
-            toast({
-                title: 'Google sign-up failed',
-                description: error instanceof Error ? error.message : 'Could not sign up with Google',
-                variant: 'destructive',
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -117,10 +54,10 @@ export default function Register() {
                 description: 'Welcome to LearnSphere. Start exploring courses!',
             });
             navigate(from, { replace: true });
-        } catch (error) {
+        } catch (error: any) {
             toast({
                 title: 'Registration failed',
-                description: error instanceof Error ? error.message : 'Could not create account',
+                description: error.response?.data?.error || error.message || 'Could not create account',
                 variant: 'destructive',
             });
         } finally {
@@ -147,21 +84,6 @@ export default function Register() {
                         <h1 className="text-2xl font-bold text-foreground">Create your account</h1>
                         <p className="text-muted-foreground mt-1">Join thousands of learners today</p>
                     </div>
-
-                    {/* Google Sign-Up Button */}
-                    {GOOGLE_CLIENT_ID && (
-                        <div className="mb-6">
-                            <div id="google-signup-button" className="flex justify-center"></div>
-                            <div className="relative my-6">
-                                <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-border"></div>
-                                </div>
-                                <div className="relative flex justify-center text-sm">
-                                    <span className="px-4 bg-white text-muted-foreground">or register with email</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="space-y-2">

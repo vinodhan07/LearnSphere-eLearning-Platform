@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { courseService } from '../services/course.service.js';
-import { Visibility, AccessRule } from '../../../../shared/constants.js';
+import { courseService } from '../services/course.service';
+import { Visibility, AccessRule } from '../../../../shared/constants';
 
 // Validation schemas
 const createCourseSchema = z.object({
@@ -156,6 +156,23 @@ export async function listAdminCourses(req: Request, res: Response): Promise<voi
         res.json(courses);
     } catch (error) {
         console.error('List admin courses error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+/**
+ * GET /api/courses/admin/enrollments
+ */
+export async function listAdminEnrollments(req: Request, res: Response): Promise<void> {
+    try {
+        if (!req.user) {
+            res.status(401).json({ error: 'Not authenticated' });
+            return;
+        }
+        const enrollments = await courseService.listAdminEnrollments({ userId: req.user.userId, role: req.user.role });
+        res.json(enrollments);
+    } catch (error) {
+        console.error('List admin enrollments error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 }

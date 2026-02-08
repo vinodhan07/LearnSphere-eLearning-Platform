@@ -1,8 +1,12 @@
 import { Router } from 'express';
-import { getMe, listAdmins } from '../controllers/auth.js';
-import { authenticate } from '../middleware/auth.js';
+import { getMe, listAdmins, login, register } from '../controllers/auth';
+import { authenticate } from '../middleware/auth';
 
 const router = Router();
+
+// Public routes
+router.post('/login', login);
+router.post('/register', register);
 
 // Protected routes
 router.get('/me', authenticate, getMe);

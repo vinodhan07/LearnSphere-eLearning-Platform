@@ -12,9 +12,10 @@ import {
     contactAttendees,
     listMyCourses,
     handleBulkAction,
-} from '../controllers/courses.js';
-import { authenticate, optionalAuthenticate } from '../middleware/auth.js';
-import { requireAnyRole } from '../middleware/rbac.js';
+} from '../controllers/courses';
+import { listLessons } from '../controllers/lessons';
+import { authenticate, optionalAuthenticate } from '../middleware/auth';
+import { requireAnyRole } from '../middleware/rbac';
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.get('/', optionalAuthenticate, listCourses);
 // --- Dynamic ID Routes Last ---
 
 router.get('/:id', optionalAuthenticate, getCourse);
+router.get('/:id/lessons', authenticate, listLessons);
 
 // --- Other Protected Routes ---
 

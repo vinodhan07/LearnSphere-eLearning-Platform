@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { motion } from "framer-motion";
-import { supabase } from '@/lib/supabase';
+import * as api from "@/lib/api";
 import { useEffect } from "react";
 import {
   Sheet,
@@ -47,26 +47,17 @@ const AdminReporting = () => {
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
-
-      // We can fetch all enrollments with courses and users joined
-      const { data, error } = await supabase
-        .from('Enrollment')
-        .select('*, course:Course(*), user:User(*)');
-
-      if (data) setEnrollments(data);
-      setIsLoading(false);
+      try {
+        const data = await api.get<any[]>('/courses/admin/enrollments');
+        setEnrollments(data);
+      } catch (error) {
+        console.error("Failed to fetch reporting data:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchData();
-
-    // Real-time
-    const channel = supabase.channel('admin-reporting')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'Enrollment' }, fetchData)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   const reportData = enrollments.map(e => {
@@ -75,7 +66,7 @@ const AdminReporting = () => {
       courseName: e.course?.title || "Unknown Course",
       participantName: e.user?.name || "Unknown User",
       participantAvatar: e.user?.avatar || `https://ui-avatars.com/api/?name=${e.user?.name || 'U'}`,
-      enrolledDate: e.enrolledAt ? new Date(e.enrolledAt).toLocaleDateString() : "—",
+      enrolledDate: e.startedAt ? new Date(e.startedAt).toLocaleDateString() : "—",
       startDate: e.startedAt ? new Date(e.startedAt).toLocaleDateString() : "—",
       timeSpent: e.timeSpent || "0m",
       completionPercentage: e.progress || 0,

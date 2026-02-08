@@ -13,6 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Mail, Send, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+import * as api from "@/lib/api";
+
 interface ContactAttendeeModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -37,8 +39,7 @@ const ContactAttendeeModal: React.FC<ContactAttendeeModalProps> = ({ isOpen, onC
 
         try {
             setIsSending(true);
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await api.post(`/courses/${courseId}/contact`, { subject, message });
 
             toast({
                 title: "Message Sent",
@@ -47,10 +48,10 @@ const ContactAttendeeModal: React.FC<ContactAttendeeModalProps> = ({ isOpen, onC
             onClose();
             setSubject("");
             setMessage("");
-        } catch (error) {
+        } catch (error: any) {
             toast({
                 title: "Error",
-                description: "Failed to send message. Please try again.",
+                description: error.message || "Failed to send message. Please try again.",
                 variant: "destructive",
             });
         } finally {

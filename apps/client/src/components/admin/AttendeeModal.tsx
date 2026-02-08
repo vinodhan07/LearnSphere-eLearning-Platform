@@ -44,7 +44,6 @@ import {
     Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
 import * as api from "@/lib/api";
 import BulkInviteModal from "./BulkInviteModal";
 import { formatDistanceToNow } from "date-fns";
@@ -103,72 +102,43 @@ const AttendeeModal = ({ isOpen, onClose, courseId }: AttendeeModalProps) => {
 
         fetchData();
         setSelectedIds(new Set());
-
-        // Real-time subscription for enrollments
-        const enrollChannel = supabase
-            .channel(`course-enrollments-${courseId}`)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'Enrollment',
-                filter: `courseId=eq.${courseId}`
-            }, () => {
-                fetchData();
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(enrollChannel);
-        };
     }, [isOpen, courseId]);
 
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            // 1. Fetch Enrollments with User profile join
-            const { data: enrollData } = await supabase
-                .from('Enrollment')
-                .select('*, user:User(*)')
-                .eq('courseId', courseId);
+            const result = await api.get<{ enrollments: any[], invitations: any[] }>(`/courses/${courseId}/attendees`);
 
-            if (enrollData) {
-                setData(prev => ({
-                    ...prev,
-                    enrollments: enrollData.map((e: any) => ({
+            if (result) {
+                setData({
+                    enrollments: result.enrollments.map((e: any) => ({
                         id: e.id,
                         progress: e.progress || 0,
                         completed: e.completed || false,
-                        lastAccessed: e.lastAccessedAt || e.updatedAt,
-                        performance: e.averageQuizScore || 0,
-                        startedAt: e.createdAt,
+                        lastAccessed: e.lastAccessed,
+                        performance: e.performance || 0,
+                        startedAt: e.startedAt,
                         user: {
                             id: e.userId,
                             name: e.user?.name || "Unknown",
                             email: e.user?.email || "No Email",
                             avatar: e.user?.avatar
                         }
-                    }))
-                }));
-            }
-
-            // 2. Fetch Invitations
-            const { data: inviteData } = await supabase
-                .from('CourseInvitation')
-                .select('*')
-                .eq('courseId', courseId);
-
-            if (inviteData) {
-                setData(prev => ({
-                    ...prev,
-                    invitations: inviteData.map((i: any) => ({
+                    })),
+                    invitations: result.invitations.map((i: any) => ({
                         id: i.id,
-                        user: { email: i.email, name: i.email.split('@')[0] },
+                        user: {
+                            id: i.userId,
+                            email: i.user?.email || "No Email",
+                            name: i.user?.name || i.user?.email?.split('@')[0] || "Unknown"
+                        },
                         status: i.status
                     }))
-                }));
+                });
             }
         } catch (error) {
             console.error("Fetch data failed:", error);
+            toast({ title: "Error", description: "Failed to load attendees", variant: "destructive" });
         } finally {
             setIsLoading(false);
         }

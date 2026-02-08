@@ -3,7 +3,7 @@ import { Progress } from "@/components/ui/progress";
 import { Trophy, Star, BookOpen, CheckCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import * as api from "@/lib/api";
 
 const ProfilePanel = () => {
   const { user, isAuthenticated } = useAuth();
@@ -15,35 +15,28 @@ const ProfilePanel = () => {
 
     const fetchStats = async () => {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('Enrollment')
-        .select('status, progress')
-        .eq('userId', user.id);
-
-      if (data) {
-        let completed = 0;
-        let inProgress = 0;
-        data.forEach(e => {
-          if (e.status === 'completed' || e.progress === 100) {
-            completed++;
-          } else {
-            inProgress++;
-          }
-        });
-        setStats({ completed, inProgress });
+      try {
+        const data = await api.getEnrolledCourses();
+        if (data) {
+          let completed = 0;
+          let inProgress = 0;
+          data.forEach((e: any) => {
+            if (e.progress === 100) {
+              completed++;
+            } else {
+              inProgress++;
+            }
+          });
+          setStats({ completed, inProgress });
+        }
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     fetchStats();
-
-    const channel = supabase.channel(`stats-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'Enrollment', filter: `userId=eq.${user.id}` }, fetchStats)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [user?.id, isAuthenticated]);
 
   if (!user) return null;

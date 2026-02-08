@@ -29,6 +29,8 @@ export interface Course {
     reviewCount?: number; // Client helper
     canStart?: boolean;
     enrollmentStatus?: string;
+    enrollments?: any[];
+    invitations?: any[];
 }
 
 export interface Attachment {
