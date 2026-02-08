@@ -1,23 +1,18 @@
-import { supabase } from '../utils/supabase.js';
+import prisma from '../utils/prisma';
 
 export class LessonService {
     async listLessons(courseId: string) {
-        const { data, error } = await supabase
-            .from('Lesson')
-            .select('*')
-            .eq('courseId', courseId)
-            .order('order', { ascending: true });
-
-        if (error) throw new Error(`Failed to list lessons: ${error.message}`);
-        return data;
+        return await prisma.lesson.findMany({
+            where: { courseId },
+            orderBy: { order: 'asc' }
+        });
     }
 
     async createLesson(courseId: string, data: any, user: { userId: string, role: string }) {
-        const { data: course } = await supabase
-            .from('Course')
-            .select('responsibleAdminId')
-            .eq('id', courseId)
-            .maybeSingle();
+        const course = await prisma.course.findUnique({
+            where: { id: courseId },
+            select: { responsibleAdminId: true }
+        });
 
         if (!course) throw new Error('Course not found');
 
@@ -25,47 +20,43 @@ export class LessonService {
             throw new Error('Not authorized to add lessons to this course');
         }
 
-        const { data: lesson, error } = await supabase
-            .from('Lesson')
-            .insert({ ...data, courseId })
-            .select()
-            .single();
-
-        if (error) throw new Error(`Failed to create lesson: ${error.message}`);
-        return lesson;
+        return await prisma.lesson.create({
+            data: {
+                ...data,
+                courseId,
+                attachments: data.attachments ? JSON.stringify(data.attachments) : null
+            }
+        });
     }
 
     async updateLesson(id: string, data: any, user: { userId: string, role: string }) {
-        const { data: existingLesson } = await supabase
-            .from('Lesson')
-            .select('*, course:Course(responsibleAdminId)')
-            .eq('id', id)
-            .maybeSingle();
+        const existingLesson = await prisma.lesson.findUnique({
+            where: { id },
+            include: { course: { select: { responsibleAdminId: true } } }
+        });
 
         if (!existingLesson) throw new Error('Lesson not found');
 
-        // Supabase join syntax: existingLesson.course is an object if one-to-one
         if (existingLesson.course.responsibleAdminId !== user.userId && user.role !== 'ADMIN') {
             throw new Error('Not authorized to update this lesson');
         }
 
-        const { data: lesson, error } = await supabase
-            .from('Lesson')
-            .update(data)
-            .eq('id', id)
-            .select()
-            .single();
+        const updateData = { ...data };
+        if (data.attachments !== undefined) {
+            updateData.attachments = data.attachments ? JSON.stringify(data.attachments) : null;
+        }
 
-        if (error) throw new Error(`Failed to update lesson: ${error.message}`);
-        return lesson;
+        return await prisma.lesson.update({
+            where: { id },
+            data: updateData
+        });
     }
 
     async deleteLesson(id: string, user: { userId: string, role: string }) {
-        const { data: existingLesson } = await supabase
-            .from('Lesson')
-            .select('*, course:Course(responsibleAdminId)')
-            .eq('id', id)
-            .maybeSingle();
+        const existingLesson = await prisma.lesson.findUnique({
+            where: { id },
+            include: { course: { select: { responsibleAdminId: true } } }
+        });
 
         if (!existingLesson) throw new Error('Lesson not found');
 
@@ -73,57 +64,46 @@ export class LessonService {
             throw new Error('Not authorized to delete this lesson');
         }
 
-        const { error } = await supabase.from('Lesson').delete().eq('id', id);
-        if (error) throw new Error(`Failed to delete lesson: ${error.message}`);
+        await prisma.lesson.delete({ where: { id } });
     }
 
     async updateProgress(lessonId: string, userId: string, data: { isCompleted?: boolean, timeSpent?: number }) {
-        // Handle upsert with custom logic for incrementing timeSpent
-        const { data: existingProgress } = await supabase
-            .from('LessonProgress')
-            .select('*')
-            .eq('userId', userId)
-            .eq('lessonId', lessonId)
-            .maybeSingle();
+        const existingProgress = await prisma.lessonProgress.findUnique({
+            where: {
+                userId_lessonId: { userId, lessonId }
+            }
+        });
 
         if (existingProgress) {
-            const { data: updated, error } = await supabase
-                .from('LessonProgress')
-                .update({
+            return await prisma.lessonProgress.update({
+                where: { id: existingProgress.id },
+                data: {
                     isCompleted: data.isCompleted ?? existingProgress.isCompleted,
                     timeSpent: existingProgress.timeSpent + (data.timeSpent ?? 0),
-                    lastAccessed: new Date().toISOString(),
-                })
-                .eq('id', existingProgress.id)
-                .select()
-                .single();
-            if (error) throw new Error(`Failed to update progress: ${error.message}`);
-            return updated;
+                    lastAccessed: new Date(),
+                }
+            });
         } else {
-            const { data: created, error } = await supabase
-                .from('LessonProgress')
-                .insert({
+            return await prisma.lessonProgress.create({
+                data: {
                     userId,
                     lessonId,
                     isCompleted: data.isCompleted ?? false,
                     timeSpent: data.timeSpent ?? 0,
-                })
-                .select()
-                .single();
-            if (error) throw new Error(`Failed to create progress: ${error.message}`);
-            return created;
+                    lastAccessed: new Date(),
+                }
+            });
         }
     }
 
     async getProgressByCourse(courseId: string, userId: string) {
-        const { data, error } = await supabase
-            .from('LessonProgress')
-            .select('*, lesson:Lesson!inner(courseId)')
-            .eq('userId', userId)
-            .eq('lesson.courseId', courseId);
-
-        if (error) throw new Error(`Failed to get progress: ${error.message}`);
-        return data;
+        return await prisma.lessonProgress.findMany({
+            where: {
+                userId,
+                lesson: { courseId }
+            },
+            include: { lesson: true }
+        });
     }
 }
 

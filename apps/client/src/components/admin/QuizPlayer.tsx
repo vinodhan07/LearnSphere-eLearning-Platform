@@ -13,17 +13,16 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import * as api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
 
 interface Question {
     id: string;
     question: string;
-    options: string[]; // We'll parse the JSON string from API
+    options: string[];
     correctIndex: number;
 }
 
 const QuizPlayer: React.FC = () => {
-    const { courseId } = useParams();
+    const { courseId } = useParams(); // Note: In this context, courseId might be lessonId if navigated from lesson
     const navigate = useNavigate();
     const { toast } = useToast();
 
@@ -45,22 +44,9 @@ const QuizPlayer: React.FC = () => {
 
         const fetchQuestions = async () => {
             setIsLoading(true);
-            const { data, error } = await supabase
-                .from('QuizQuestion')
-                .select('*')
-                .eq('quizId', courseId)
-                .order('order', { ascending: true });
-
-            if (error) {
-                console.error("Quiz questions fetch error:", error);
-                toast({
-                    title: "Error",
-                    description: "Failed to load quiz content.",
-                    variant: "destructive",
-                });
-            } else if (data) {
+            try {
+                const data = await api.getQuizQuestions(courseId);
                 const formatted = data.map(d => ({
-                    id: d.id,
                     ...d,
                     options: typeof d.options === 'string' ? JSON.parse(d.options) : d.options
                 } as Question));
@@ -68,19 +54,19 @@ const QuizPlayer: React.FC = () => {
                 if (formatted.length > 0) {
                     setPointsPerQuestion(TOTAL_QUIZ_POINTS / formatted.length);
                 }
+            } catch (error) {
+                console.error("Quiz questions fetch error:", error);
+                toast({
+                    title: "Error",
+                    description: "Failed to load quiz content.",
+                    variant: "destructive",
+                });
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         };
 
         fetchQuestions();
-
-        const channel = supabase.channel(`quiz-player-${courseId}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'QuizQuestion', filter: `quizId=eq.${courseId}` }, fetchQuestions)
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
     }, [courseId, toast]);
 
     const handleOptionSelect = (index: number) => {
@@ -88,7 +74,7 @@ const QuizPlayer: React.FC = () => {
         setSelectedOption(index);
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (selectedOption === null) return;
 
         const currentQuestion = questions[currentIndex];
@@ -103,6 +89,9 @@ const QuizPlayer: React.FC = () => {
             // Deduct 1 mark, but don't go below 0
             setScore(prev => Math.max(0, prev - 1));
         }
+
+        // If it's the last question, we might want to submit the final score to backend
+        // This is handled by a separate submit call usually, but let's keep it simple for now.
     };
 
     const handleNext = () => {

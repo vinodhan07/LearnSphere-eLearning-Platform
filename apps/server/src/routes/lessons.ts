@@ -4,9 +4,9 @@ import {
     updateLesson,
     deleteLesson,
     listLessons,
-} from '../controllers/lessons.js';
-import { authenticate } from '../middleware/auth.js';
-import { requireAnyRole } from '../middleware/rbac.js';
+} from '../controllers/lessons';
+import { authenticate } from '../middleware/auth';
+import { requireAnyRole } from '../middleware/rbac';
 
 const router = Router();
 

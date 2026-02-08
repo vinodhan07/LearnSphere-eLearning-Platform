@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { TokenPayload } from '../utils/auth.js';
-import { supabase } from '../utils/supabase.js';
+import { TokenPayload, verifyToken } from '../utils/auth';
+import prisma from '../utils/prisma';
 
 // Extend Express Request to include user info
 declare global {
@@ -12,7 +12,7 @@ declare global {
 }
 
 /**
- * Middleware to authenticate JWT access token via Supabase
+ * Middleware to authenticate JWT access token
  */
 export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
     const authHeader = req.headers.authorization;
@@ -25,28 +25,27 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     const token = authHeader.substring(7);
 
     try {
-        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+        const payload = verifyToken(token);
 
-        if (authError || !authUser) {
-            res.status(401).json({ error: 'Invalid or expired token' });
+        // Verify user still exists and get latest role
+        const user = await prisma.user.findUnique({
+            where: { id: payload.userId },
+            select: { id: true, email: true, role: true } // role is stored as string
+        });
+
+        if (!user) {
+            res.status(401).json({ error: 'User not found' });
             return;
         }
 
-        // Fetch additional profile info (role) from public table
-        const { data: profile } = await supabase
-            .from('User')
-            .select('role')
-            .eq('id', authUser.id)
-            .maybeSingle();
-
         req.user = {
-            userId: authUser.id,
-            email: authUser.email || '',
-            role: profile?.role || 'LEARNER',
+            userId: user.id,
+            email: user.email,
+            role: user.role as any, // Cast string to Role type
         };
         next();
     } catch (error) {
-        res.status(401).json({ error: 'Authentication failed' });
+        res.status(401).json({ error: 'Invalid or expired token' });
     }
 }
 
@@ -59,18 +58,17 @@ export async function optionalAuthenticate(req: Request, res: Response, next: Ne
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
         try {
-            const { data: { user: authUser } } = await supabase.auth.getUser(token);
-            if (authUser) {
-                const { data: profile } = await supabase
-                    .from('User')
-                    .select('role')
-                    .eq('id', authUser.id)
-                    .maybeSingle();
+            const payload = verifyToken(token);
+            const user = await prisma.user.findUnique({
+                where: { id: payload.userId },
+                select: { id: true, email: true, role: true }
+            });
 
+            if (user) {
                 req.user = {
-                    userId: authUser.id,
-                    email: authUser.email || '',
-                    role: profile?.role || 'LEARNER',
+                    userId: user.id,
+                    email: user.email,
+                    role: user.role as any,
                 };
             }
         } catch (e) {

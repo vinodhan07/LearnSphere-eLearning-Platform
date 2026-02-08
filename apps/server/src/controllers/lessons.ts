@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { lessonService } from '../services/lesson.service.js';
+import { lessonService } from '../services/lesson.service';
 
 // Validation schema for creating/updating a lesson
 const lessonSchema = z.object({

@@ -19,6 +19,7 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import Profile from "./pages/Profile";
+import CheckoutPage from "./pages/CheckoutPage";
 
 import AdminLayout from "./components/layout/AdminLayout";
 import QuizPlayer from "@/components/admin/QuizPlayer";
@@ -37,6 +38,11 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/courses" element={<CourseCatalog />} />
             <Route path="/courses/:id" element={<CourseDetail />} />
+            <Route path="/checkout/:courseId" element={
+              <ProtectedRoute minRole="LEARNER">
+                <CheckoutPage />
+              </ProtectedRoute>
+            } />
 
             {/* Auth routes (guest only) */}
             <Route path="/login" element={
@@ -74,20 +80,15 @@ const App = () => (
               </ProtectedRoute>
             }>
               <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route path="/admin-dashboard" element={<AdminDashboard />} />
-              <Route path="/instructor/dashboard" element={<AdminDashboard />} />
               <Route path="/instructor-dashboard" element={<AdminDashboard />} />
               <Route path="/admin/course/:id" element={<CourseEditor />} />
               <Route path="/admin/quiz/:courseId" element={<QuizPlayer />} />
               <Route path="/admin/reports" element={<AdminReporting />} />
+              {/* Legacy/Redirects if needed, but keeping clean for now */}
             </Route>
 
-            <Route path="/learner/dashboard" element={
-              <ProtectedRoute minRole="LEARNER">
-                <MyCourses />
-              </ProtectedRoute>
-            } />
+            {/* Specific dashboard routes outside AdminLayout if needed, or inside for consistency */}
             <Route path="/learner-dashboard" element={
               <ProtectedRoute minRole="LEARNER">
                 <MyCourses />

@@ -44,7 +44,7 @@ import AttendeeModal from "@/components/admin/AttendeeModal";
 import ContactAttendeeModal from "@/components/admin/ContactAttendeeModal";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface QuizQuestion {
     id: string;
@@ -124,91 +124,57 @@ const CourseEditor = () => {
     const [expandedQuizzes, setExpandedQuizzes] = useState<Set<string>>(new Set());
     const [tagInput, setTagInput] = useState("");
 
+    const { user, isLoading: authLoading } = useAuth();
+
     useEffect(() => {
-        if (!id) return;
+        if (!id || authLoading) return;
 
         const fetchData = async () => {
             setIsLoading(true);
+            // Clear previous state to prevent ghost data
+            setCourse(null);
+            setLessons([]);
+            setQuizQuestions({});
+            setAdmins([]);
+            setExpandedQuizzes(new Set());
 
-            // 1. Fetch Course
-            const { data: courseData, error: courseError } = await supabase
-                .from('Course')
-                .select('*')
-                .eq('id', id)
-                .maybeSingle();
-
-            if (courseError || !courseData) {
-                toast({ title: "Error", description: "Course not found", variant: "destructive" });
-                navigate('/admin');
-                return;
-            }
-            setCourse(courseData as any);
-
-            // 2. Fetch Lessons
-            const { data: lessonsData } = await supabase
-                .from('Lesson')
-                .select('*')
-                .eq('courseId', id)
-                .order('order', { ascending: true });
-
-            if (lessonsData) setLessons(lessonsData as any);
-
-            // 3. Fetch Admins
             try {
-                const adminData = await api.get<Admin[]>(`/auth/admins`);
-                setAdmins(adminData);
-            } catch (error) {
-                console.error("Failed to fetch admins", error);
-            }
+                // 1. Fetch Course & Lessons in parallel
+                const [courseData, lessonsData] = await Promise.all([
+                    api.getCourse(id),
+                    api.getCourseLessons(id)
+                ]);
 
-            setIsLoading(false);
+                setCourse(courseData as any);
+                setLessons(lessonsData as any);
+
+                // 3. Fetch Admins (non-blocking, might fail for instructors)
+                try {
+                    const adminData = await api.get<Admin[]>(`/auth/admins`);
+                    setAdmins(adminData);
+                } catch (adminError) {
+                    console.warn("Could not fetch admins (instructor role?)", adminError);
+                    // Provide the current user as an option if they are an instructor
+                    if (user && user.role === 'INSTRUCTOR') {
+                        setAdmins([{ id: user.id, name: user.name, email: user.email }]);
+                    }
+                }
+            } catch (error) {
+                console.error("Fetch data error:", error);
+                toast({ title: "Error", description: "Failed to load course details", variant: "destructive" });
+                navigate('/admin');
+            } finally {
+                setIsLoading(false);
+            }
         };
 
         fetchData();
-
-        // Real-time for Lessons
-        const lessonChannel = supabase
-            .channel(`course-lessons-${id}`)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'Lesson',
-                filter: `courseId=eq.${id}`
-            }, () => {
-                supabase.from('Lesson').select('*').eq('courseId', id).order('order', { ascending: true })
-                    .then(({ data }) => data && setLessons(data as any));
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(lessonChannel);
-        };
-    }, [id, navigate, toast]);
+    }, [id, navigate, toast, authLoading, user]);
 
     const fetchQuestions = async (lessonId: string) => {
         try {
-            const fetchOnce = async () => {
-                const { data } = await supabase
-                    .from('QuizQuestion')
-                    .select('*')
-                    .eq('lessonId', lessonId)
-                    .order('order', { ascending: true });
-                if (data) setQuizQuestions(prev => ({ ...prev, [lessonId]: data }));
-            };
-
-            fetchOnce();
-
-            const channel = supabase
-                .channel(`quiz-questions-${lessonId}`)
-                .on('postgres_changes', {
-                    event: '*',
-                    schema: 'public',
-                    table: 'QuizQuestion',
-                    filter: `lessonId=eq.${lessonId}`
-                }, fetchOnce)
-                .subscribe();
-
-            return () => supabase.removeChannel(channel);
+            const data = await api.getQuizQuestions(lessonId);
+            setQuizQuestions(prev => ({ ...prev, [lessonId]: data }));
         } catch (error) {
             console.error("Failed to fetch questions:", error);
         }
@@ -236,6 +202,7 @@ const CourseEditor = () => {
             description: courseData.description || "",
             // Handle price logic and ensure numbers
             price: courseData.accessRule === 'PAID' && courseData.price ? Number(courseData.price) : null,
+            currency: "INR"
         };
     };
 
@@ -334,12 +301,9 @@ const CourseEditor = () => {
         const lessonId = deleteModalConfig.itemId;
         try {
             setIsSaving(true);
-            const { error } = await supabase
-                .from('Lesson')
-                .delete()
-                .eq('id', lessonId);
+            await api.del(`/lessons/${lessonId}`);
 
-            if (error) throw error;
+            setLessons(prev => prev.filter(l => l.id !== lessonId));
             toast({ title: "Success", description: "Lesson deleted successfully" });
         } catch (error) {
             toast({ title: "Error", description: "Failed to delete lesson", variant: "destructive" });
@@ -368,17 +332,20 @@ const CourseEditor = () => {
         try {
             setIsSaving(true);
             const newOrder = (quizQuestions[lessonId]?.length || 0);
-            const { error } = await supabase
-                .from('QuizQuestion')
-                .insert({
-                    lessonId: lessonId,
-                    question: "New Question",
-                    options: ["Option 1", "Option 2"],
-                    correctIndex: 0,
-                    order: newOrder,
-                });
+            const data = {
+                question: "New Question",
+                options: JSON.stringify(["Option 1", "Option 2"]),
+                correctIndex: 0,
+                order: newOrder,
+            };
 
-            if (error) throw error;
+            const newQuestion = await api.post(`/quizzes/${lessonId}/question`, data);
+
+            setQuizQuestions(prev => ({
+                ...prev,
+                [lessonId]: [...(prev[lessonId] || []), newQuestion]
+            }));
+
             toast({ title: "Success", description: "Question added" });
         } catch (error) {
             console.error("Failed to add question:", error);
@@ -411,15 +378,17 @@ const CourseEditor = () => {
 
     const handleUpdateQuestion = async (quizId: string, questionId: string, data: any) => {
         try {
-            const { error } = await supabase
-                .from('QuizQuestion')
-                .update({
-                    ...data,
-                    updatedAt: new Date().toISOString()
-                })
-                .eq('id', questionId);
+            const updateData = {
+                ...data,
+                options: typeof data.options !== 'string' ? JSON.stringify(data.options) : data.options
+            };
+            await api.put(`/quizzes/${questionId}`, updateData);
 
-            if (error) throw error;
+            setQuizQuestions(prev => ({
+                ...prev,
+                [quizId]: prev[quizId].map(q => q.id === questionId ? { ...q, ...data } : q)
+            }));
+
             toast({ title: "Updated", description: "Question saved" });
         } catch (error) {
             toast({ title: "Error", description: "Failed to update question", variant: "destructive" });
@@ -439,14 +408,18 @@ const CourseEditor = () => {
 
     const confirmDeleteQuestion = async () => {
         const questionId = deleteModalConfig.itemId;
+        const lessonId = deleteModalConfig.parentId;
         try {
             setIsSaving(true);
-            const { error } = await supabase
-                .from('QuizQuestion')
-                .delete()
-                .eq('id', questionId);
+            await api.del(`/quizzes/${questionId}`);
 
-            if (error) throw error;
+            if (lessonId) {
+                setQuizQuestions(prev => ({
+                    ...prev,
+                    [lessonId]: prev[lessonId].filter(q => q.id !== questionId)
+                }));
+            }
+
             toast({ title: "Deleted", description: "Question removed successfully" });
         } catch (error) {
             toast({ title: "Error", description: "Failed to delete question", variant: "destructive" });
@@ -988,12 +961,16 @@ const CourseEditor = () => {
                         </h4>
                         <div className="space-y-3">
                             <div className="flex justify-between items-center text-xs">
-                                <span className="text-muted-foreground">Total Lessons</span>
-                                <span className="font-bold">{lessons.length}</span>
+                                <span className="text-muted-foreground">Content Lessons</span>
+                                <span className="font-bold">{lessons.filter(l => l.type !== 'quiz').length}</span>
                             </div>
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-muted-foreground">Quizzes</span>
                                 <span className="font-bold">{quizLessons.length}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs border-t border-primary/10 pt-2">
+                                <span className="text-muted-foreground">Total Items</span>
+                                <span className="font-bold">{lessons.length}</span>
                             </div>
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-muted-foreground">Published</span>

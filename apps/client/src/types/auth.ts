@@ -14,8 +14,7 @@ export interface User {
 // Auth response from API
 export interface AuthResponse {
     user: User;
-    accessToken: string;
-    refreshToken: string;
+    token: string;
 }
 
 // Login request

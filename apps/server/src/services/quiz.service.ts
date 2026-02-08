@@ -1,38 +1,29 @@
-import { supabase } from '../utils/supabase.js';
-import { lessonService } from './lesson.service.js';
+import prisma from '../utils/prisma';
+import { lessonService } from './lesson.service';
 
 export class QuizService {
     async getQuizQuestions(lessonId: string) {
-        const { data, error } = await supabase
-            .from('QuizQuestion')
-            .select('*')
-            .eq('lessonId', lessonId);
+        const questions = await prisma.quizQuestion.findMany({
+            where: { lessonId }
+        });
 
-        if (error) throw new Error(`Failed to get quiz questions: ${error.message}`);
-
-        return (data || []).map((q: any) => ({
+        return questions.map(q => ({
             ...q,
-            options: q.options,
+            options: JSON.parse(q.options as string),
         }));
     }
 
     async submitQuiz(lessonId: string, userId: string, answers: number[]) {
-        const { data: lesson, error: lessonError } = await supabase
-            .from('Lesson')
-            .select(`
-                *,
-                questions:QuizQuestion(*)
-            `)
-            .eq('id', lessonId)
-            .maybeSingle();
+        const lesson = await prisma.lesson.findUnique({
+            where: { id: lessonId },
+            include: { questions: true }
+        });
 
-        if (lessonError || !lesson || lesson.type !== 'quiz') throw new Error('Quiz not found');
+        if (!lesson || lesson.type !== 'quiz') throw new Error('Quiz not found');
         if (!lesson.questions || lesson.questions.length === 0) throw new Error('Quiz has no questions');
 
         let correctCount = 0;
-        lesson.questions.forEach((q: any, index: number) => {
-            const parsedOptions = q.options;
-            // Verify if the answer index matches
+        lesson.questions.forEach((q, index) => {
             if (answers[index] === q.correctIndex) {
                 correctCount++;
             }
@@ -45,35 +36,35 @@ export class QuizService {
         if (passed) {
             pointsEarned = lesson.pointsReward;
 
-            const { data: existingPass } = await supabase
-                .from('QuizAttempt')
-                .select('*')
-                .eq('userId', userId)
-                .eq('lessonId', lessonId)
-                .eq('passed', true)
-                .maybeSingle();
+            const existingPass = await prisma.quizAttempt.findFirst({
+                where: {
+                    userId,
+                    lessonId,
+                    passed: true
+                }
+            });
 
             if (existingPass) {
                 pointsEarned = 0;
             } else {
-                await supabase.rpc('increment_user_points', { user_id: userId, points: pointsEarned });
+                // Increment user points
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: { totalPoints: { increment: pointsEarned } }
+                });
                 await lessonService.updateProgress(lessonId, userId, { isCompleted: true });
             }
         }
 
-        const { data: attempt, error: createError } = await supabase
-            .from('QuizAttempt')
-            .insert({
+        const attempt = await prisma.quizAttempt.create({
+            data: {
                 userId,
                 lessonId,
                 score,
                 passed,
                 pointsEarned,
-            })
-            .select()
-            .single();
-
-        if (createError) throw new Error(`Failed to save quiz attempt: ${createError.message}`);
+            }
+        });
 
         return {
             attempt,
@@ -86,19 +77,14 @@ export class QuizService {
     async createQuestion(lessonId: string, data: any) {
         const { question, options, correctIndex } = data;
 
-        const { data: result, error } = await supabase
-            .from('QuizQuestion')
-            .insert({
+        return await prisma.quizQuestion.create({
+            data: {
                 question,
-                options,
+                options: JSON.stringify(options),
                 correctIndex,
                 lessonId,
-            })
-            .select()
-            .single();
-
-        if (error) throw new Error(`Failed to create question: ${error.message}`);
-        return result;
+            }
+        });
     }
 
     async updateQuestion(id: string, data: any) {
@@ -106,26 +92,17 @@ export class QuizService {
         const updateData: any = {};
 
         if (question !== undefined) updateData.question = question;
-        if (options !== undefined) updateData.options = options;
+        if (options !== undefined) updateData.options = JSON.stringify(options);
         if (correctIndex !== undefined) updateData.correctIndex = correctIndex;
 
-        const { data: result, error } = await supabase
-            .from('QuizQuestion')
-            .update(updateData)
-            .eq('id', id)
-            .select()
-            .single();
-
-        if (error) throw new Error(`Failed to update question: ${error.message}`);
-        return result;
+        return await prisma.quizQuestion.update({
+            where: { id },
+            data: updateData
+        });
     }
 
     async deleteQuestion(id: string) {
-        const { error } = await supabase
-            .from('QuizQuestion')
-            .delete()
-            .eq('id', id);
-        if (error) throw new Error(`Failed to delete question: ${error.message}`);
+        await prisma.quizQuestion.delete({ where: { id } });
     }
 }
 

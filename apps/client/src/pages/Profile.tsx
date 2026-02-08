@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { User, Mail, Shield, Calendar, Trophy, Settings } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import { motion } from "framer-motion";
-import { supabase } from "@/lib/supabase";
 
 export default function Profile() {
     const { user, isAuthenticated } = useAuth();
@@ -18,12 +17,12 @@ export default function Profile() {
         if (!user?.id || !isAuthenticated) return;
 
         const fetchEnrollmentCount = async () => {
-            const { count, error } = await supabase
-                .from('Enrollment')
-                .select('*', { count: 'exact', head: true })
-                .eq('userId', user.id);
-
-            if (count !== null) setEnrollmentCount(count);
+            try {
+                const courses = await api.getEnrolledCourses();
+                setEnrollmentCount(courses.length);
+            } catch (error) {
+                console.error("Failed to fetch enrollment count:", error);
+            }
         };
 
         fetchEnrollmentCount();
@@ -107,6 +106,9 @@ export default function Profile() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <Card className="bg-gradient-hero text-primary-foreground border-none">
                                     <CardHeader className="pb-2">
+                                        <CardDescription className="text-primary-foreground/70 flex items-center gap-2">
+                                            <Trophy className="h-4 w-4" /> Total Points
+                                        </CardDescription>
                                         <CardDescription className="text-primary-foreground/70 flex items-center gap-2">
                                             <Trophy className="h-4 w-4" /> Total Points
                                         </CardDescription>

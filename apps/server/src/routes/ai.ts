@@ -5,9 +5,9 @@ import {
     getInstructorInsights,
     summarizeReviews,
     generateQuiz
-} from '../controllers/ai.js';
-import { authenticate } from '../middleware/auth.js';
-import { requireAnyRole } from '../middleware/rbac.js';
+} from '../controllers/ai';
+import { authenticate } from '../middleware/auth';
+import { requireAnyRole } from '../middleware/rbac';
 
 const router = Router();
 

@@ -1,74 +1,69 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+async function hashPassword(password: string) {
+    return bcrypt.hash(password, 10);
+}
+
 async function main() {
-    // Cleanup
-    await prisma.enrollment.deleteMany();
-    await prisma.lessonProgress.deleteMany();
-    await prisma.quizAttempt.deleteMany();
-    await prisma.quizQuestion.deleteMany();
-    await prisma.lesson.deleteMany();
-    await prisma.course.deleteMany();
-    // We don't delete users to preserve auth accounts, or we could if we want a fresh start.
-    // For now, let's just seed courses.
+    console.log('🌱 Seeding database...');
 
-    const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+    const adminPassword = await hashPassword('admin123');
+    const instructorPassword = await hashPassword('instructor123');
+    const learnerPassword = await hashPassword('learner123');
 
-    if (!adminUser) {
-        console.log('No admin user found. Please sign up as admin first or manually create one.');
-        return;
-    }
-
-    // Create a sample course
-    const course = await prisma.course.create({
-        data: {
-            title: 'Advanced React Patterns',
-            description: 'Master advanced React concepts including HOCs, Render Props, and Custom Hooks.',
-            image: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&q=80&w=800',
-            tags: ['React', 'Frontend', 'Web Development'],
-            published: true,
-            website: 'https://react.dev',
-            visibility: 'EVERYONE',
-            accessRule: 'OPEN',
-            price: 0,
-            currency: 'USD',
-            responsibleAdminId: adminUser.id,
-            lessons: {
-                create: [
-                    {
-                        title: 'Introduction to Patterns',
-                        description: 'Overview of common React patterns.',
-                        content: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-                        duration: 10.5,
-                        type: 'video',
-                        order: 1,
-                        allowDownload: true,
-                        attachments: [],
-                    },
-                    {
-                        title: 'Render Props vs Hooks',
-                        description: 'Comparing different component composition techniques.',
-                        content: '# Render Props\n\nRender props are a technique...',
-                        duration: 15,
-                        type: 'document',
-                        order: 2,
-                        allowDownload: false,
-                    }
-                ]
-            }
-        }
+    // Admin
+    const admin = await prisma.user.upsert({
+        where: { email: 'admin.learnsphere@gmail.com' },
+        update: {},
+        create: {
+            email: 'admin.learnsphere@gmail.com',
+            name: 'Admin User',
+            password: adminPassword,
+            role: 'ADMIN',
+            totalPoints: 1000,
+        },
     });
+    console.log(`Created Admin: ${admin.email}`);
 
-    console.log(`Seeded course: ${course.title}`);
+    // Instructor
+    const instructor = await prisma.user.upsert({
+        where: { email: 'instructor.learnsphere@gmail.com' },
+        update: {},
+        create: {
+            email: 'instructor.learnsphere@gmail.com',
+            name: 'Instructor User',
+            password: instructorPassword,
+            role: 'INSTRUCTOR',
+            totalPoints: 500,
+        },
+    });
+    console.log(`Created Instructor: ${instructor.email}`);
+
+    // Learner
+    const learner = await prisma.user.upsert({
+        where: { email: 'learner.learnsphere@gmail.com' },
+        update: {},
+        create: {
+            email: 'learner.learnsphere@gmail.com',
+            name: 'Learner User',
+            password: learnerPassword,
+            role: 'LEARNER',
+            totalPoints: 0,
+        },
+    });
+    console.log(`Created Learner: ${learner.email}`);
+
+    console.log('✅ Seeding completed.');
 }
 
 main()
-    .then(async () => {
-        await prisma.$disconnect();
-    })
-    .catch(async (e) => {
+    .catch((e) => {
         console.error(e);
-        await prisma.$disconnect();
         process.exit(1);
+    })
+    .finally(async () => {
+        await prisma.$disconnect();
     });

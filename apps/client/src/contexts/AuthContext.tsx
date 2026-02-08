@@ -1,14 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, Role, LoginRequest, RegisterRequest } from '@/types/auth';
-import { supabase } from '@/lib/supabase';
+import { User, Role, LoginRequest, RegisterRequest, AuthResponse } from '@/types/auth';
+import { login as apiLogin, register as apiRegister, getCurrentUser } from '@/lib/api';
 
 interface AuthContextType {
     user: User | null;
     isLoading: boolean;
     isAuthenticated: boolean;
-    login: (data: LoginRequest) => Promise<User | null>;
+    login: (data: LoginRequest) => Promise<void>;
     register: (data: RegisterRequest) => Promise<void>;
-    googleLogin: (credential: string) => Promise<User | null>;
     logout: () => Promise<void>;
     hasRole: (requiredRole: Role) => boolean;
     hasAnyRole: (...roles: Role[]) => boolean;
@@ -28,121 +27,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // If profile is null after login, check Supabase table name (User vs user) and RLS (e.g. auth.uid() = id).
-    const fetchUserProfile = async (uid: string) => {
+    const fetchUserProfile = async () => {
         try {
-            const { data, error } = await supabase
-                .from('User')
-                .select('*')
-                .eq('id', uid)
-                .maybeSingle();
-
-            if (error) {
-                // Ignore AbortError which happens on rapid navigation
-                if (error.message && error.message.includes('AbortError')) return null;
-                console.error('Error fetching user profile:', error.message);
-                return null;
-            }
-            return data as User | null;
-        } catch (err) {
-            return null;
+            const { user: userData } = await getCurrentUser();
+            setUser(userData);
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+            // If token is invalid, clear it
+            localStorage.removeItem('token');
+            setUser(null);
+        } finally {
+            setIsLoading(false);
         }
     };
 
     // Check for existing session on mount
     useEffect(() => {
-        let mounted = true;
-
-        const initSession = async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session && mounted) {
-                    const profile = await fetchUserProfile(session.user.id);
-                    if (mounted) setUser(profile);
-                } else if (mounted) {
-                    setUser(null);
-                }
-            } catch (error) {
-                console.error('Error checking session:', error);
-                if (mounted) setUser(null);
-            } finally {
-                if (mounted) setIsLoading(false);
-            }
-        };
-
-        initSession();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            if (session) {
-                const profile = await fetchUserProfile(session.user.id);
-                if (mounted) setUser(profile);
-            } else {
-                if (mounted) setUser(null);
-            }
-            if (mounted) setIsLoading(false);
-        });
-
-        return () => {
-            mounted = false;
-            subscription.unsubscribe();
-        };
+        const token = localStorage.getItem('token');
+        if (token) {
+            fetchUserProfile();
+        } else {
+            setIsLoading(false);
+        }
     }, []);
 
     const login = useCallback(async (data: LoginRequest) => {
-        const { data: authData, error } = await supabase.auth.signInWithPassword({
-            email: data.email,
-            password: data.password,
-        });
-
-        if (error) throw error;
-
-        // Optimistically fetch profile to ensure state is ready before promise resolves
-        if (authData.session) {
-            const profile = await fetchUserProfile(authData.session.user.id);
-            setUser(profile);
-            setIsLoading(false);
-            return profile;
-        }
-        return null;
+        const response = await apiLogin(data);
+        localStorage.setItem('token', response.token);
+        setUser(response.user);
     }, []);
 
     const register = useCallback(async (data: RegisterRequest) => {
-        // Sign up user via Supabase Auth
-        // The public.User profile is created automatically via Supabase database trigger
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: data.email,
-            password: data.password,
-            options: {
-                data: {
-                    name: data.name,
-                }
-            }
-        });
-
-        if (authError || !authData.user) throw authError || new Error('Auth signup failed');
-
-        // setUser will be called by onAuthStateChange listener
-    }, []);
-
-    const googleLogin = useCallback(async (credential: string) => {
-        const { data, error } = await supabase.auth.signInWithIdToken({
-            provider: 'google',
-            token: credential,
-        });
-
-        if (error) throw error;
-
-        if (data.session) {
-            const profile = await fetchUserProfile(data.session.user.id);
-            setUser(profile);
-            setIsLoading(false);
-            return profile;
-        }
-        return null;
+        const response = await apiRegister(data);
+        localStorage.setItem('token', response.token);
+        setUser(response.user);
     }, []);
 
     const logout = useCallback(async () => {
-        await supabase.auth.signOut();
+        localStorage.removeItem('token');
         setUser(null);
     }, []);
 
@@ -174,7 +96,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: !!user,
         login,
         register,
-        googleLogin,
         logout,
         hasRole,
         hasAnyRole,

@@ -1,21 +1,18 @@
-import { supabase } from './supabase';
 import {
     AuthResponse,
     LoginRequest,
     RegisterRequest,
-    RefreshResponse,
     User,
 } from '@/types/auth';
 import { Course } from '@/types/course';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 /**
- * Get the current access token from Supabase session
+ * Get the current access token from localStorage
  */
-export async function getAccessToken(): Promise<string | null> {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
+export function getAccessToken(): string | null {
+    return localStorage.getItem('token');
 }
 
 /**
@@ -26,7 +23,7 @@ async function apiRequest<T>(
     options: RequestInit = {}
 ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-    const accessToken = await getAccessToken();
+    const accessToken = getAccessToken();
 
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -85,8 +82,7 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
         throw new Error(error.error || 'Registration failed');
     }
 
-    const authResponse: AuthResponse = await response.json();
-    return authResponse;
+    return response.json();
 }
 
 /**
@@ -104,11 +100,8 @@ export async function login(data: LoginRequest): Promise<AuthResponse> {
         throw new Error(error.error || 'Login failed');
     }
 
-    const authResponse: AuthResponse = await response.json();
-    return authResponse;
+    return response.json();
 }
-
-// ============ Auth API Functions ============
 
 /**
  * Get the current user profile from the server
@@ -125,6 +118,51 @@ export async function getCourses(): Promise<Course[]> {
 
 export async function getCourse(id: string): Promise<Course> {
     return get<Course>(`/courses/${id}`);
+}
+
+export async function getEnrolledCourses(): Promise<Course[]> {
+    return get<Course[]>('/courses/my/enrolled');
+}
+
+export async function getAdminCourses(): Promise<Course[]> {
+    return get<Course[]>('/courses/admin/list');
+}
+
+export async function getCourseLessons(courseId: string): Promise<any[]> {
+    return get<any[]>(`/courses/${courseId}/lessons`);
+}
+
+export async function enroll(courseId: string, paymentMethodId?: string): Promise<any> {
+    return post(`/courses/${courseId}/enroll`, { paymentMethodId });
+}
+
+export async function purchaseCourse(courseId: string, data: any): Promise<any> {
+    return post(`/courses/${courseId}/purchase`, data);
+}
+
+export async function updateLessonProgress(lessonId: string, data: { isCompleted: boolean, timeSpent?: number }): Promise<any> {
+    return post(`/quizzes/${lessonId}/progress`, data);
+}
+
+export async function getCourseProgress(courseId: string): Promise<any> {
+    return get(`/quizzes/course/${courseId}/progress`);
+}
+
+// ============ Quiz API Functions ============
+
+export interface QuizQuestion {
+    id: string;
+    question: string;
+    options: string[] | string;
+    correctIndex: number;
+}
+
+export async function getQuizQuestions(lessonId: string): Promise<QuizQuestion[]> {
+    return get<QuizQuestion[]>(`/quizzes/${lessonId}/questions`);
+}
+
+export async function submitQuiz(lessonId: string, answers: number[]): Promise<any> {
+    return post(`/quizzes/${lessonId}/submit`, { answers });
 }
 
 // ============ Generic API Helpers ============

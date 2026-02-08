@@ -1,41 +1,42 @@
 import express from 'express';
 import cors from 'cors';
-import routes from './routes/index.js';
+import dotenv from 'dotenv';
+import authRoutes from './routes/auth';
+import courseRoutes from './routes/courses';
+import lessonRoutes from './routes/lessons';
+import quizRoutes from './routes/quizzes';
+import aiRoutes from './routes/ai';
+import { optionalAuthenticate } from './middleware/auth';
+
+dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
-// Middleware - Allow all localhost/IP origins for development
-app.use(cors({
-    origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-
-        // Allow all origins for development to support local IP access (192.168.x.x)
-        return callback(null, true);
-    },
-    credentials: true,
-}));
+app.use(cors());
 app.use(express.json());
 
+// Apply optional authentication to all routes to populate req.user if token exists
+app.use(optionalAuthenticate);
+
 // Routes
-app.use('/api', routes);
+app.use('/api/auth', authRoutes);
+app.use('/api/courses', courseRoutes);
+app.use('/api/lessons', lessonRoutes);
+app.use('/api/quizzes', quizRoutes);
+app.use('/api/ai', aiRoutes);
 
-// 404 handler
-app.use((req, res) => {
-    res.status(404).json({ error: `Path not found: ${req.originalUrl}` });
+// Health check
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Error handling
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error('Unhandled error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+// Error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'Something went wrong!' });
 });
 
-// Start server
 app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📚 API available at http://localhost:${PORT}/api`);
+    console.log(`Server is running on port ${PORT}`);
 });
-
-export default app;

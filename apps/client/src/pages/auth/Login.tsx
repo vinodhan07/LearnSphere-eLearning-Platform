@@ -1,126 +1,64 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, LogIn, BookOpen } from 'lucide-react';
 
-// Google Client ID - Replace with your own for production
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-
 export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [googleLoaded, setGoogleLoaded] = useState(false);
 
-    const { login, googleLogin } = useAuth();
+    const { login } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const { toast } = useToast();
 
     const from = (location.state as { from?: string })?.from || '/profile';
 
-    const handleRedirect = useCallback((role?: string) => {
-        const path =
-            role === 'ADMIN'
-                ? '/admin-dashboard'
-                : role === 'INSTRUCTOR'
-                    ? '/instructor-dashboard'
-                    : role === 'LEARNER'
-                        ? '/learner-dashboard'
-                        : '/my-courses';
-        // Defer navigate so React commits auth state first; otherwise ProtectedRoute still sees user=null and redirects back to login
-        setTimeout(() => navigate(path, { replace: true }), 0);
-    }, [navigate]);
+    const handleSubmit = async (e?: React.FormEvent, demoData?: { email: string, password: string }) => {
+        if (e) e.preventDefault();
+        const loginEmail = demoData?.email || email;
+        const loginPassword = demoData?.password || password;
 
-    const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
         setIsSubmitting(true);
+
         try {
-            const profile = await googleLogin(response.credential);
-            handleRedirect(profile?.role);
-            toast({
-                title: 'Welcome!',
-                description: 'You have successfully signed in with Google.',
-            });
-        } catch (error) {
-            toast({
-                title: 'Google sign-in failed',
-                description: error instanceof Error ? error.message : 'Could not sign in with Google',
-                variant: 'destructive',
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
-    }, [googleLogin, handleRedirect, toast]);
+            await login({ email: loginEmail, password: loginPassword });
 
-    // Load Google Identity Services script
-    useEffect(() => {
-        if (!GOOGLE_CLIENT_ID) return;
+            // Get user from local storage or wait for next tick?
+            // Actually, login() in AuthContext sets the user state.
+            // But we need the role immediately. 
+            // The login() function in AuthContext (apiLogin) returns { user, token }.
+            // However, useAuth().user might not be updated yet in this component's scope.
+            // Let's modify handleLogin to return the user or use a helper.
 
-        const script = document.createElement('script');
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.async = true;
-        script.defer = true;
-        script.onload = () => setGoogleLoaded(true);
-        document.body.appendChild(script);
+            // For now, since login() is async and updates state, we might need a small trick
+            // or better yet, since we know apiLogin returns the user:
+            const response = await (await import('@/lib/api')).login({ email: loginEmail, password: loginPassword });
 
-        return () => {
-            document.body.removeChild(script);
-        };
-    }, []);
-
-    // Initialize Google Sign-In
-    useEffect(() => {
-        if (!googleLoaded || !GOOGLE_CLIENT_ID) return;
-
-        const google = (window as any).google;
-        if (!google) return;
-
-        google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: handleGoogleResponse,
-        });
-
-        const buttonDiv = document.getElementById('google-signin-button');
-        if (buttonDiv) {
-            google.accounts.id.renderButton(buttonDiv, {
-                theme: 'filled_black',
-                size: 'large',
-                width: 320,
-                text: 'continue_with',
-            });
-        }
-    }, [googleLoaded, handleGoogleResponse]);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        await performLogin(email, password);
-    };
-
-    const handleDemoLogin = async (demoEmail: string, demoPassword: string) => {
-        setEmail(demoEmail);
-        setPassword(demoPassword);
-        await performLogin(demoEmail, demoPassword);
-    };
-
-    const performLogin = async (loginEmail: string, loginPassword: string) => {
-        setIsSubmitting(true);
-        try {
-            const profile = await login({ email: loginEmail, password: loginPassword });
-            handleRedirect(profile?.role);
             toast({
                 title: 'Welcome back!',
-                description: 'You have successfully logged in.',
+                description: `Logged in as ${response.user.name}`,
             });
-        } catch (error) {
+
+            // Role-based redirection
+            const roleRoutes = {
+                ADMIN: '/admin-dashboard',
+                INSTRUCTOR: '/instructor-dashboard',
+                LEARNER: '/learner-dashboard'
+            };
+
+            const target = roleRoutes[response.user.role] || from;
+            navigate(target, { replace: true });
+        } catch (error: any) {
             toast({
                 title: 'Login failed',
-                description: error instanceof Error ? error.message : 'Invalid credentials',
+                description: error.response?.data?.error || error.message || 'Invalid credentials',
                 variant: 'destructive',
             });
         } finally {
@@ -147,21 +85,6 @@ export default function Login() {
                         <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
                         <p className="text-muted-foreground mt-1">Sign in to continue learning</p>
                     </div>
-
-                    {/* Google Sign-In Button */}
-                    {GOOGLE_CLIENT_ID && (
-                        <div className="mb-6">
-                            <div id="google-signin-button" className="flex justify-center"></div>
-                            <div className="relative my-6">
-                                <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-border"></div>
-                                </div>
-                                <div className="relative flex justify-center text-sm">
-                                    <span className="px-4 bg-white text-muted-foreground">or continue with email</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="space-y-2">
@@ -234,26 +157,26 @@ export default function Login() {
 
                     {/* Demo credentials */}
                     <div className="mt-8 pt-6 border-t border-border">
-                        <p className="text-xs text-muted-foreground text-center mb-3">Demo accounts (Click to auto-login):</p>
+                        <p className="text-xs text-muted-foreground text-center mb-3">Demo accounts (Click to fill):</p>
                         <div className="grid grid-cols-3 gap-2 text-xs">
                             <button
                                 type="button"
-                                onClick={() => handleDemoLogin('admin.learnsphere@gmail.com', 'admin123')}
-                                className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
+                                onClick={() => { setEmail('admin.learnsphere@gmail.com'); setPassword('admin123'); }}
+                                className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors border border-transparent hover:border-orange-200"
                             >
                                 Admin
                             </button>
                             <button
                                 type="button"
-                                onClick={() => handleDemoLogin('instructor.learnsphere@gmail.com', 'instructor123')}
-                                className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
+                                onClick={() => { setEmail('instructor.learnsphere@gmail.com'); setPassword('instructor123'); }}
+                                className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors border border-transparent hover:border-orange-200"
                             >
                                 Instructor
                             </button>
                             <button
                                 type="button"
-                                onClick={() => handleDemoLogin('learner.learnsphere@gmail.com', 'learner123')}
-                                className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
+                                onClick={() => { setEmail('learner.learnsphere@gmail.com'); setPassword('learner123'); }}
+                                className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors border border-transparent hover:border-orange-200"
                             >
                                 Learner
                             </button>

@@ -21,24 +21,16 @@ const stats = [
 const Index = () => {
   const [featuredCourses, setFeaturedCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { user, hasMinimumRole, isLoading: isAuthLoading } = useAuth();
+  const { hasMinimumRole, user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
+    // Wait for auth to initialize before making decisions about what to fetch
+    if (authLoading) return;
+
     const fetchCourses = async () => {
-      // Wait for auth to initialize
-      if (isAuthLoading) return;
-
-      // Only fetch if guest or learner
-      if (hasMinimumRole("INSTRUCTOR")) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
         const data = await getCourses();
-        // Server already filters published for guests, but we double check to be safe
-        // and take the first 3 for the featured section
         const published = data.filter((c: Course) => c.published).slice(0, 3);
         setFeaturedCourses(published);
       } catch (error) {
@@ -53,8 +45,13 @@ const Index = () => {
       }
     };
 
-    fetchCourses();
-  }, [hasMinimumRole, isAuthLoading, toast]);
+    // Only fetch courses for guests or learners
+    if (!user || user.role === 'LEARNER') {
+      fetchCourses();
+    } else {
+      setIsLoading(false);
+    }
+  }, [toast, user, authLoading]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -93,12 +90,12 @@ const Index = () => {
                 </Button>
               </Link>
               {hasMinimumRole("INSTRUCTOR") && (
-                <Link to={user?.role === "ADMIN" ? "/admin-dashboard" : "/instructor-dashboard"}>
+                <Link to="/admin">
                   <Button
                     size="lg"
                     className="bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 font-semibold text-base"
                   >
-                    {user?.role === "ADMIN" ? "Admin Portal" : "Instructor Portal"}
+                    Instructor Portal
                   </Button>
                 </Link>
               )}

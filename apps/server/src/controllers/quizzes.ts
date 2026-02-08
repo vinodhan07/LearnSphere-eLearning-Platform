@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { quizService } from '../services/quiz.service.js';
-import { lessonService } from '../services/lesson.service.js';
+import { quizService } from '../services/quiz.service';
+import { lessonService } from '../services/lesson.service';
 
 const submitQuizSchema = z.object({
     answers: z.array(z.number()),

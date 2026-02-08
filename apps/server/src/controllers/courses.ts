@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { courseService } from '../services/course.service.js';
-import { Visibility, AccessRule } from '../../../../shared/constants.js';
+import { courseService } from '../services/course.service';
+import { Visibility, AccessRule } from '../../../../shared/constants';
 
 // Validation schemas
 const createCourseSchema = z.object({
@@ -161,6 +161,23 @@ export async function listAdminCourses(req: Request, res: Response): Promise<voi
 }
 
 /**
+ * GET /api/courses/admin/enrollments
+ */
+export async function listAdminEnrollments(req: Request, res: Response): Promise<void> {
+    try {
+        if (!req.user) {
+            res.status(401).json({ error: 'Not authenticated' });
+            return;
+        }
+        const enrollments = await courseService.listAdminEnrollments({ userId: req.user.userId, role: req.user.role });
+        res.json(enrollments);
+    } catch (error) {
+        console.error('List admin enrollments error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+/**
  * GET /api/courses/my/enrolled
  */
 export async function listMyCourses(req: Request, res: Response): Promise<void> {
@@ -251,5 +268,41 @@ export async function handleBulkAction(req: Request, res: Response): Promise<voi
     } catch (error) {
         console.error('Bulk action error:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+}
+/**
+ * POST /api/courses/:id/purchase
+ */
+export async function purchaseCourse(req: Request, res: Response): Promise<void> {
+    try {
+        console.log('POST /api/courses/:id/purchase - Received', {
+            id: req.params.id,
+            user: req.user?.userId,
+            body: req.body
+        });
+
+        if (!req.user) {
+            res.status(401).json({ error: 'Not authenticated' });
+            return;
+        }
+
+        const { plan, billingDetails, coupon } = req.body;
+        const courseId = req.params.id as string;
+
+        const enrollment = await courseService.purchaseCourse(courseId, req.user.userId, {
+            plan,
+            billingDetails,
+            coupon
+        });
+
+        res.status(200).json({
+            message: 'Purchase completed successfully',
+            enrollment
+        });
+    } catch (error: any) {
+        console.error('Purchase error:', error);
+        res.status(error.message === 'Course not found' ? 404 : 400).json({
+            error: error.message || 'Internal server error'
+        });
     }
 }

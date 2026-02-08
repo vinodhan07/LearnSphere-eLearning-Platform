@@ -28,7 +28,13 @@ const CourseCard = ({ course, showProgress = false, index = 0 }: CourseCardProps
       return;
     }
 
-    // Authenticated: Proceed to course
+    // PAID Course Logic
+    if (course.accessRule === "PAID" && course.enrollmentStatus !== 'ENROLLED') {
+      navigate(`/checkout/${course.id}`);
+      return;
+    }
+
+    // Authenticated & Enrolled (or Open): Proceed to course
     navigate(`/courses/${course.id}`);
   };
 
@@ -40,7 +46,7 @@ const CourseCard = ({ course, showProgress = false, index = 0 }: CourseCardProps
       return <Button size="sm" onClick={handleStartCourse} className="bg-gradient-hero text-primary-foreground font-semibold">Continue</Button>;
     }
     if (course.accessRule === "PAID" && course.price) {
-      return <Button size="sm" onClick={handleStartCourse} className="bg-gradient-accent text-accent-foreground font-semibold">Buy ${course.price}</Button>;
+      return <Button size="sm" onClick={handleStartCourse} className="bg-gradient-accent text-accent-foreground font-semibold">Buy ₹{course.price}</Button>;
     }
     // Default action (Start Course)
     return (
@@ -84,7 +90,7 @@ const CourseCard = ({ course, showProgress = false, index = 0 }: CourseCardProps
             {course.price && (
               <div className="absolute top-3 right-3">
                 <Badge className="bg-gradient-accent text-accent-foreground font-bold text-sm px-2.5 py-0.5">
-                  ${course.price}
+                  ₹{course.price}
                 </Badge>
               </div>
             )}

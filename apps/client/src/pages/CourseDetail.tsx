@@ -4,13 +4,12 @@ import { ArrowLeft, BookOpen, Clock, Users, Star, Play, FileText, Image as Image
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getCourse } from "@/lib/api";
+import * as api from "@/lib/api";
 import { Course, Lesson } from "@/types/course";
 import Navbar from "@/components/layout/Navbar";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
 
 const typeIcons: Record<string, React.ElementType> = {
   video: Play,
@@ -35,42 +34,22 @@ const CourseDetail = () => {
     const fetchData = async () => {
       if (!id) return;
       try {
-        const courseData = await getCourse(id);
+        const [courseData, lessonsData] = await Promise.all([
+          api.getCourse(id),
+          api.getCourseLessons(id)
+        ]);
 
         if (courseData) {
           setCourse(courseData);
-
-          const { data: lessonsData } = await supabase
-            .from('Lesson')
-            .select('*')
-            .eq('courseId', id)
-            .order('order', { ascending: true });
-
-          if (lessonsData) setLessons(lessonsData as any);
-
-          // Fetch reviews
-          const { data: reviewsData } = await supabase
-            .from('Review')
-            .select('*')
-            .eq('courseId', id);
-
-          if (reviewsData) setReviews(reviewsData as any);
-
-          // Check enrollment
-          if (user) {
-            const { data: enrollData } = await supabase
-              .from('Enrollment')
-              .select('*')
-              .eq('courseId', id)
-              .eq('userId', user.id)
-              .maybeSingle();
-
-            if (enrollData) {
-              setIsEnrolled(true);
-              setCourse(prev => prev ? { ...prev, progress: enrollData.progress || 0 } : null);
-            }
+          if (courseData.enrollmentStatus === 'ENROLLED') {
+            setIsEnrolled(true);
           }
         }
+        if (lessonsData) setLessons(lessonsData as any);
+
+        // Note: Reviews are disabled as the model is not yet implemented in Prisma
+        setReviews([]);
+
       } catch (error) {
         console.error("Error fetching course detail:", error);
         toast({
@@ -109,10 +88,8 @@ const CourseDetail = () => {
     );
   }
 
-  const completedCount = lessons.filter((l) => (l as any).completed).length;
-  const avgRating = reviews.length
-    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-    : "0";
+  const completedCount = 0; // Will be updated if progress is fetched
+  const avgRating = "0.0";
 
   const handleStartLearning = async () => {
     if (!isAuthenticated) {
@@ -142,19 +119,12 @@ const CourseDetail = () => {
       }
 
       try {
-        const { error } = await supabase
-          .from('Enrollment')
-          .insert({
-            courseId: course.id,
-            userId: user!.id,
-            progress: 0,
-            enrolledAt: new Date().toISOString()
-          });
-
-        if (error) throw error;
+        await api.enroll(course.id);
         setIsEnrolled(true);
+        toast({ title: "Enrolled Successfully", description: "You can now start learning!" });
       } catch (error) {
         console.error("Enrollment failed:", error);
+        toast({ title: "Enrollment Failed", description: "Something went wrong.", variant: "destructive" });
         return;
       }
     }

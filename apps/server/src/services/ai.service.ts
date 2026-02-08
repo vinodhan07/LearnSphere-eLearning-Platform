@@ -1,5 +1,5 @@
-import { claudeAgent } from '../agents/ClaudeAgent.js';
-import { supabase } from '../utils/supabase.js';
+import { claudeAgent } from '../agents/ClaudeAgent';
+import prisma from '../utils/prisma';
 
 export class AIService {
     async getLessonExplanation(lessonId: string) {
@@ -15,16 +15,12 @@ export class AIService {
     }
 
     async getInstructorInsights() {
-        // Group by in Supabase is not directly available in select like Prisma groupBy.
-        // We'll use a complex select or a view/rpc for deep analytics.
-        // For now, let's simplify or use an RPC if available.
-        // Simplified approach: get failed attempts and calculate in JS (data might be large, but it's a demo)
-        const { data: attempts, error } = await supabase
-            .from('QuizAttempt')
-            .select('lessonId, score')
-            .eq('passed', false);
+        const attempts = await prisma.quizAttempt.findMany({
+            where: { passed: false },
+            select: { lessonId: true, score: true }
+        });
 
-        if (error || !attempts) throw new Error('Failed to get instructor insights');
+        if (!attempts) throw new Error('Failed to get instructor insights');
 
         const lessonStats: Record<string, { count: number, totalScore: number }> = {};
         attempts.forEach(a => {
@@ -38,12 +34,10 @@ export class AIService {
 
         let hardestLesson = null;
         if (mostFailed) {
-            const { data: lesson } = await supabase
-                .from('Lesson')
-                .select('title, id')
-                .eq('id', mostFailed[0])
-                .maybeSingle();
-            hardestLesson = lesson;
+            hardestLesson = await prisma.lesson.findUnique({
+                where: { id: mostFailed[0] },
+                select: { title: true, id: true }
+            });
         }
 
         return {

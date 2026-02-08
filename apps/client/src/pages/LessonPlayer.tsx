@@ -31,7 +31,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import QuizFlow from "@/components/learner/QuizFlow";
 import PointsNotification from "@/components/common/PointsNotification";
 import Navbar from "@/components/layout/Navbar";
-import { supabase } from "@/lib/supabase";
 
 interface Lesson {
   id: string;
@@ -78,35 +77,30 @@ const LessonPlayerPage = () => {
         try {
           setIsLoading(true);
 
-          // Fetch course and lessons
-          const { data: courseData } = await supabase
-            .from('Course')
-            .select('*')
-            .eq('id', courseId)
-            .maybeSingle();
-
-          const { data: lessonsData } = await supabase
-            .from('Lesson')
-            .select('*')
-            .eq('courseId', courseId)
-            .order('order', { ascending: true });
+          // Fetch course, lessons, and progress in parallel
+          const [courseData, lessonsData, progressData] = await Promise.all([
+            api.getCourse(courseId),
+            api.getCourseLessons(courseId),
+            api.getCourseProgress(courseId)
+          ]);
 
           if (courseData) setCourse(courseData as any);
           if (lessonsData) setLessons(lessonsData as any);
 
-          // Fetch enrollment
-          const { data: enrollData } = await supabase
-            .from('Enrollment')
-            .select('*')
-            .eq('courseId', courseId)
-            .eq('userId', user.id)
-            .maybeSingle();
+          if (progressData) {
+            const completed = new Set<string>();
+            progressData.forEach((p: any) => {
+              if (p.isCompleted) completed.add(p.lessonId);
+            });
+            setCompletedIds(completed);
+          }
 
-          if (enrollData) {
-            setEnrollmentId(enrollData.id);
-            setCompletedIds(new Set(enrollData.completedLessons || []));
+          // Find enrollment id from course data (Course data now includes enrollment status and potentially enrollment details)
+          if (courseData.enrollments && courseData.enrollments.length > 0) {
+            setEnrollmentId(courseData.enrollments[0].id);
           }
         } catch (error) {
+          console.error("Fetch data error:", error);
           toast({ title: "Error", description: "Failed to load course content", variant: "destructive" });
         } finally {
           setIsLoading(false);
@@ -115,29 +109,19 @@ const LessonPlayerPage = () => {
 
       fetchData();
     }
-  }, [courseId, user]);
+  }, [courseId, user, toast]);
 
   const current = lessons[currentIndex];
 
   const handleMarkComplete = async () => {
-    if (!current || !enrollmentId) return;
+    if (!current) return;
     try {
-      const newCompleted = [...Array.from(completedIds), current.id];
-      const progress = Math.round((newCompleted.length / lessons.length) * 100);
+      await api.updateLessonProgress(current.id, { isCompleted: true });
 
-      const { error } = await supabase
-        .from('Enrollment')
-        .update({
-          completedLessons: newCompleted,
-          progress,
-          status: progress === 100 ? 'completed' : 'in_progress',
-          completedAt: progress === 100 ? new Date().toISOString() : null
-        })
-        .eq('id', enrollmentId);
+      const newCompleted = new Set(completedIds);
+      newCompleted.add(current.id);
+      setCompletedIds(newCompleted);
 
-      if (error) throw error;
-
-      setCompletedIds(new Set(newCompleted));
       toast({ title: "Lesson Completed", description: "Your progress has been saved." });
     } catch (error) {
       toast({ title: "Error", description: "Failed to save progress", variant: "destructive" });

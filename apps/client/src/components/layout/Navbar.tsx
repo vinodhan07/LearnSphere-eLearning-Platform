@@ -111,7 +111,7 @@ const Navbar = () => {
         <div className="hidden md:flex items-center gap-3">
           {/* Show Admin/Instructor Panel when on learner area */}
           {isLearnerArea && isAuthenticated && hasMinimumRole("INSTRUCTOR") && (
-            <Link to={user?.role === "ADMIN" ? "/admin-dashboard" : "/instructor-dashboard"}>
+            <Link to="/admin">
               <Button variant="outline" size="sm" className="gap-2 border-border text-muted-foreground hover:text-foreground">
                 <LayoutDashboard className="h-4 w-4" />
                 {user?.role === "ADMIN" ? "Admin Panel" : "Instructor Panel"}
@@ -121,7 +121,7 @@ const Navbar = () => {
 
           {/* When on admin/instructor area, show link back to learner view */}
           {isAdminArea && (
-            <Link to="/learner-dashboard">
+            <Link to="/">
               <Button variant="outline" size="sm" className="gap-2">
                 <BookOpen className="h-4 w-4" />
                 Learner View
@@ -230,7 +230,7 @@ const Navbar = () => {
                       </div>
                     </div>
                     {hasMinimumRole("INSTRUCTOR") && isLearnerArea && (
-                      <Link to={user?.role === "ADMIN" ? "/admin-dashboard" : "/instructor-dashboard"} onClick={() => setMobileOpen(false)}>
+                      <Link to="/admin" onClick={() => setMobileOpen(false)}>
                         <Button variant="outline" className="w-full gap-2">
                           <LayoutDashboard className="h-4 w-4" />
                           {user?.role === "ADMIN" ? "Admin Panel" : "Instructor Panel"}
@@ -238,7 +238,7 @@ const Navbar = () => {
                       </Link>
                     )}
                     {isAdminArea && (
-                      <Link to="/learner-dashboard" onClick={() => setMobileOpen(false)}>
+                      <Link to="/" onClick={() => setMobileOpen(false)}>
                         <Button variant="outline" className="w-full gap-2">
                           <BookOpen className="h-4 w-4" />
                           Learner View

@@ -21,6 +21,7 @@ export interface Course {
     };
     enrolledCount?: number;
     lessonsCount?: number;
+    quizzesCount?: number;
     // Client-specific/Optional
     progress?: number;
     totalDuration?: number;
@@ -29,6 +30,8 @@ export interface Course {
     reviewCount?: number; // Client helper
     canStart?: boolean;
     enrollmentStatus?: string;
+    enrollments?: any[];
+    invitations?: any[];
 }
 
 export interface Attachment {
