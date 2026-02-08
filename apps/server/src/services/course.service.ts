@@ -443,23 +443,26 @@ export class CourseService {
     }
 
     async listEnrolledCourses(userId: string) {
-        const enrollments = await prisma.enrollment.findMany({
+        const enrollments = await (prisma.enrollment.findMany({
             where: { userId },
             include: {
                 course: {
                     include: {
                         responsibleAdmin: { select: { id: true, name: true, avatar: true } },
-                        lessons: { select: { id: true } }
-                    }
+                        lessons: { select: { id: true } },
+                        imageData: true
+                    } as any
                 }
             }
-        });
+        }) as any);
 
-        return enrollments.map(e => ({
-            ...e.course,
+        return enrollments.map((e: any) => ({
+            ...(e.course as any),
             tags: e.course.tags ? JSON.parse(e.course.tags as string) : [],
             lessonsCount: e.course.lessons.length,
             progress: e.progress,
+            hasImage: !!(e.course as any).imageData,
+            imageData: undefined
         }));
     }
 
