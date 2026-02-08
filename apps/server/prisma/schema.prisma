@@ -53,6 +53,7 @@ model Course {
   description        String?
   tags               String?  // JSON array stored as string for SQLite
   image              String?
+  imageData          Bytes?
   
   // Publishing
   published          Boolean  @default(false)

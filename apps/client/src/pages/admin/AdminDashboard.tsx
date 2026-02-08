@@ -317,7 +317,7 @@ const AdminDashboard = () => {
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border mt-auto">
+                            <div className="grid grid-cols-4 gap-2 pt-2 border-t border-border mt-auto">
                               <div className="flex flex-col gap-1">
                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Views</span>
                                 <div className="flex items-center gap-1.5 text-foreground">
@@ -330,6 +330,13 @@ const AdminDashboard = () => {
                                 <div className="flex items-center gap-1.5 text-foreground">
                                   <BookOpen className="h-3 w-3 text-blue-500" />
                                   <span className="text-sm font-semibold">{course.lessonsCount || 0}</span>
+                                </div>
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Quizzes</span>
+                                <div className="flex items-center gap-1.5 text-foreground">
+                                  <HelpCircle className="h-3 w-3 text-orange-500" />
+                                  <span className="text-sm font-semibold">{course.quizzesCount || 0}</span>
                                 </div>
                               </div>
                               <div className="flex flex-col gap-1">
@@ -369,6 +376,7 @@ const AdminDashboard = () => {
                         <th className="text-left text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Status</th>
                         <th className="text-center text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Views</th>
                         <th className="text-center text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Lessons</th>
+                        <th className="text-center text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Quizzes</th>
                         <th className="text-center text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Duration</th>
                         <th className="text-right text-[11px] font-bold text-muted-foreground uppercase tracking-widest py-4 px-6">Actions</th>
                       </tr>
@@ -401,6 +409,9 @@ const AdminDashboard = () => {
                           </td>
                           <td className="py-4 px-6 text-center">
                             <span className="text-sm font-medium text-foreground">{course.lessonsCount || 0}</span>
+                          </td>
+                          <td className="py-4 px-6 text-center">
+                            <span className="text-sm font-medium text-foreground">{course.quizzesCount || 0}</span>
                           </td>
                           <td className="py-4 px-6 text-center text-sm font-medium text-foreground">
                             {course.totalDuration || 0} min

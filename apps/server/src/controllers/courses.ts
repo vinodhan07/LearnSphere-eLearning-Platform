@@ -44,7 +44,13 @@ export async function createCourse(req: Request, res: Response): Promise<void> {
             res.status(400).json({ error: 'Validation failed', details: validation.error.flatten().fieldErrors });
             return;
         }
-        const course = await courseService.createCourse(validation.data, req.user.userId);
+
+        const courseData = {
+            ...validation.data,
+            imageData: req.file ? req.file.buffer : null
+        };
+
+        const course = await courseService.createCourse(courseData, req.user.userId);
         res.status(201).json(course);
     } catch (error: any) {
         console.error('Create course error:', error);
@@ -93,7 +99,13 @@ export async function updateCourse(req: Request, res: Response): Promise<void> {
             res.status(400).json({ error: 'Validation failed', details: validation.error.flatten().fieldErrors });
             return;
         }
-        const course = await courseService.updateCourse(req.params.id as string, validation.data, { userId: req.user.userId, role: req.user.role });
+
+        const courseData = {
+            ...validation.data,
+            imageData: req.file ? req.file.buffer : undefined
+        };
+
+        const course = await courseService.updateCourse(req.params.id as string, courseData, { userId: req.user.userId, role: req.user.role });
         res.json(course);
     } catch (error: any) {
         console.error('Update course error:', error);
@@ -267,6 +279,26 @@ export async function handleBulkAction(req: Request, res: Response): Promise<voi
         }
     } catch (error) {
         console.error('Bulk action error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+/**
+ * GET /api/courses/:id/image
+ */
+export async function getCourseImage(req: Request, res: Response): Promise<void> {
+    try {
+        const imageData = await courseService.getCourseImage(req.params.id as string);
+        if (!imageData) {
+            res.status(404).json({ error: 'Image not found' });
+            return;
+        }
+
+        // Basic detection or default to jpeg
+        res.set('Content-Type', 'image/jpeg');
+        res.send(imageData);
+    } catch (error: any) {
+        console.error('Get course image error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 }

@@ -107,38 +107,50 @@ const AttendeeModal = ({ isOpen, onClose, courseId }: AttendeeModalProps) => {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const result = await api.get<{ enrollments: any[], invitations: any[] }>(`/courses/${courseId}/attendees`);
+            // 1. Fetch Enrollments with User profile join
+            const { data: enrollData } = await supabase
+                .from('Enrollment')
+                .select('*, user:User(*)')
+                .eq('courseId', courseId);
 
-            if (result) {
-                setData({
-                    enrollments: result.enrollments.map((e: any) => ({
+            if (enrollData) {
+                setData(prev => ({
+                    ...prev,
+                    enrollments: enrollData.map((e: any) => ({
                         id: e.id,
                         progress: e.progress || 0,
                         completed: e.completed || false,
-                        lastAccessed: e.lastAccessed,
-                        performance: e.performance || 0,
-                        startedAt: e.startedAt,
+                        lastAccessed: e.lastAccessedAt || e.updatedAt,
+                        performance: e.averageQuizScore || 0,
+                        startedAt: e.createdAt,
                         user: {
                             id: e.userId,
                             name: e.user?.name || "Unknown",
                             email: e.user?.email || "No Email",
                             avatar: e.user?.avatar
                         }
-                    })),
-                    invitations: result.invitations.map((i: any) => ({
+                    }))
+                }));
+            }
+
+            // 2. Fetch Invitations
+            const { data: inviteData } = await supabase
+                .from('CourseInvitation')
+                .select('*')
+                .eq('courseId', courseId);
+
+            if (inviteData) {
+                setData(prev => ({
+                    ...prev,
+                    invitations: inviteData.map((i: any) => ({
                         id: i.id,
-                        user: {
-                            id: i.userId,
-                            email: i.user?.email || "No Email",
-                            name: i.user?.name || i.user?.email?.split('@')[0] || "Unknown"
-                        },
+                        user: { email: i.email, name: i.email.split('@')[0] },
                         status: i.status
                     }))
-                });
+                }));
             }
         } catch (error) {
             console.error("Fetch data failed:", error);
-            toast({ title: "Error", description: "Failed to load attendees", variant: "destructive" });
         } finally {
             setIsLoading(false);
         }

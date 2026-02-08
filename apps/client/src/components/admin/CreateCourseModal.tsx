@@ -15,6 +15,7 @@ interface CreateCourseModalProps {
 
 export default function CreateCourseModal({ open, onOpenChange }: CreateCourseModalProps) {
     const [title, setTitle] = useState('');
+    const [imageFile, setImageFile] = useState<File | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
     const { user } = useAuth();
@@ -25,16 +26,20 @@ export default function CreateCourseModal({ open, onOpenChange }: CreateCourseMo
 
         setIsSubmitting(true);
         try {
-            await api.post('/courses', {
-                title: title.trim(),
-                responsibleAdminId: user.id,
-                description: '',
-                image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=800',
-                published: false,
-                website: '',
-                visibility: 'EVERYONE',
-                accessRule: 'OPEN',
-            });
+            const formData = new FormData();
+            formData.append('title', title.trim());
+            formData.append('responsibleAdminId', user.id);
+            formData.append('description', '');
+            formData.append('published', 'false');
+            formData.append('website', '');
+            formData.append('visibility', 'EVERYONE');
+            formData.append('accessRule', 'OPEN');
+            formData.append('currency', 'INR');
+            if (imageFile) {
+                formData.append('imageFile', imageFile);
+            }
+
+            await api.post('/courses', formData);
 
             toast({
                 title: 'Course created',
@@ -75,6 +80,18 @@ export default function CreateCourseModal({ open, onOpenChange }: CreateCourseMo
                             required
                             disabled={isSubmitting}
                         />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="image" className="text-foreground">Course Cover (Optional)</Label>
+                        <Input
+                            id="image"
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                            className="bg-background border-input text-foreground focus:ring-orange-500 focus:border-orange-500 cursor-pointer"
+                            disabled={isSubmitting}
+                        />
+                        <p className="text-[10px] text-muted-foreground italic">Recommended size: 800x450px (Limit: 5MB)</p>
                     </div>
                     <DialogFooter className="pt-4">
                         <Button

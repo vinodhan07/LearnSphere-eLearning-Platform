@@ -3,7 +3,7 @@ import { Visibility, AccessRule } from '../../../../shared/constants';
 
 export class CourseService {
     async createCourse(data: any, adminId: string) {
-        const { title, description, tags, image, published, website, visibility, accessRule, price, currency } = data;
+        const { title, description, tags, image, imageData, published, website, visibility, accessRule, price, currency } = data;
 
         const course = await prisma.course.create({
             data: {
@@ -11,12 +11,13 @@ export class CourseService {
                 description,
                 tags: tags ? JSON.stringify(tags) : undefined,
                 image: image || null,
+                imageData: imageData || null, // imageData is handled here
                 published: published || false,
                 website: website || null,
                 visibility: visibility || Visibility.EVERYONE,
                 accessRule: accessRule || AccessRule.OPEN,
                 price: accessRule === AccessRule.PAID ? price : null,
-                currency: currency || 'USD',
+                currency: currency || 'INR',
                 responsibleAdminId: adminId,
             },
             include: {
@@ -41,7 +42,21 @@ export class CourseService {
 
             const courses = await prisma.course.findMany({
                 where,
-                include: {
+                select: {
+                    id: true,
+                    title: true,
+                    description: true,
+                    tags: true,
+                    image: true,
+                    published: true,
+                    visibility: true,
+                    accessRule: true,
+                    price: true,
+                    currency: true,
+                    responsibleAdminId: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    viewsCount: true,
                     responsibleAdmin: {
                         select: { id: true, name: true, avatar: true }
                     },
@@ -274,7 +289,7 @@ export class CourseService {
                     select: { id: true, name: true, avatar: true }
                 },
                 lessons: {
-                    select: { duration: true }
+                    select: { duration: true, type: true }
                 },
                 enrollments: { select: { id: true } },
                 invitations: { select: { id: true } }
@@ -288,6 +303,7 @@ export class CourseService {
             enrolledCount: course.enrollments.length,
             invitationCount: course.invitations.length,
             lessonsCount: course.lessons.length,
+            quizzesCount: course.lessons.filter(l => l.type === 'quiz').length,
             totalDuration: course.lessons.reduce((sum, lesson) => sum + (lesson.duration || 0), 0),
         }));
     }
@@ -460,6 +476,19 @@ export class CourseService {
             },
             orderBy: { startedAt: 'desc' }
         });
+    }
+
+    async getCourseImage(id: string) {
+        const course = await prisma.course.findUnique({
+            where: { id },
+            select: { imageData: true }
+        });
+
+        if (!course || !course.imageData) {
+            return null;
+        }
+
+        return course.imageData;
     }
 }
 

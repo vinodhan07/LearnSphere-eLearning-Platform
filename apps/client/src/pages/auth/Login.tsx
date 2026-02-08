@@ -161,25 +161,22 @@ export default function Login() {
                         <div className="grid grid-cols-3 gap-2 text-xs">
                             <button
                                 type="button"
-                                onClick={() => handleSubmit(undefined, { email: 'admin.learnsphere@gmail.com', password: 'admin123' })}
+                                onClick={() => { setEmail('admin.learnsphere@gmail.com'); setPassword('admin123'); }}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors border border-transparent hover:border-orange-200"
-                                disabled={isSubmitting}
                             >
                                 Admin
                             </button>
                             <button
                                 type="button"
-                                onClick={() => handleSubmit(undefined, { email: 'instructor.learnsphere@gmail.com', password: 'instructor123' })}
+                                onClick={() => { setEmail('instructor.learnsphere@gmail.com'); setPassword('instructor123'); }}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors border border-transparent hover:border-orange-200"
-                                disabled={isSubmitting}
                             >
                                 Instructor
                             </button>
                             <button
                                 type="button"
-                                onClick={() => handleSubmit(undefined, { email: 'learner.learnsphere@gmail.com', password: 'learner123' })}
+                                onClick={() => { setEmail('learner.learnsphere@gmail.com'); setPassword('learner123'); }}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors border border-transparent hover:border-orange-200"
-                                disabled={isSubmitting}
                             >
                                 Learner
                             </button>

@@ -21,6 +21,7 @@ export interface Course {
     };
     enrolledCount?: number;
     lessonsCount?: number;
+    quizzesCount?: number;
     // Client-specific/Optional
     progress?: number;
     totalDuration?: number;
