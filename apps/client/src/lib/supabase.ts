@@ -11,4 +11,4 @@ if (!supabaseUrl || !supabaseKey) {
     console.error(msg);
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseKey || '');
+export const supabase = createClient(supabaseUrl!, supabaseKey!);

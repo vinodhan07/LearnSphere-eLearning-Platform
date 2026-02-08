@@ -112,11 +112,11 @@ export default function Login() {
         setIsSubmitting(true);
         try {
             const profile = await login({ email: loginEmail, password: loginPassword });
+            handleRedirect(profile?.role);
             toast({
                 title: 'Welcome back!',
                 description: 'You have successfully logged in.',
             });
-            handleRedirect(profile?.role);
         } catch (error) {
             toast({
                 title: 'Login failed',
