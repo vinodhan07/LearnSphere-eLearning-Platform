@@ -44,6 +44,7 @@ import AttendeeModal from "@/components/admin/AttendeeModal";
 import ContactAttendeeModal from "@/components/admin/ContactAttendeeModal";
 import DeleteConfirmationModal from "@/components/admin/DeleteConfirmationModal";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface QuizQuestion {
     id: string;
@@ -123,23 +124,41 @@ const CourseEditor = () => {
     const [expandedQuizzes, setExpandedQuizzes] = useState<Set<string>>(new Set());
     const [tagInput, setTagInput] = useState("");
 
+    const { user, isLoading: authLoading } = useAuth();
+
     useEffect(() => {
-        if (!id) return;
+        if (!id || authLoading) return;
 
         const fetchData = async () => {
             setIsLoading(true);
-            try {
-                // 1. Fetch Course
-                const courseData = await api.getCourse(id);
-                setCourse(courseData as any);
+            // Clear previous state to prevent ghost data
+            setCourse(null);
+            setLessons([]);
+            setQuizQuestions({});
+            setAdmins([]);
+            setExpandedQuizzes(new Set());
 
-                // 2. Fetch Lessons
-                const lessonsData = await api.getCourseLessons(id);
+            try {
+                // 1. Fetch Course & Lessons in parallel
+                const [courseData, lessonsData] = await Promise.all([
+                    api.getCourse(id),
+                    api.getCourseLessons(id)
+                ]);
+
+                setCourse(courseData as any);
                 setLessons(lessonsData as any);
 
-                // 3. Fetch Admins
-                const adminData = await api.get<Admin[]>(`/auth/admins`);
-                setAdmins(adminData);
+                // 3. Fetch Admins (non-blocking, might fail for instructors)
+                try {
+                    const adminData = await api.get<Admin[]>(`/auth/admins`);
+                    setAdmins(adminData);
+                } catch (adminError) {
+                    console.warn("Could not fetch admins (instructor role?)", adminError);
+                    // Provide the current user as an option if they are an instructor
+                    if (user && user.role === 'INSTRUCTOR') {
+                        setAdmins([{ id: user.id, name: user.name, email: user.email }]);
+                    }
+                }
             } catch (error) {
                 console.error("Fetch data error:", error);
                 toast({ title: "Error", description: "Failed to load course details", variant: "destructive" });
@@ -150,7 +169,7 @@ const CourseEditor = () => {
         };
 
         fetchData();
-    }, [id, navigate, toast]);
+    }, [id, navigate, toast, authLoading, user]);
 
     const fetchQuestions = async (lessonId: string) => {
         try {

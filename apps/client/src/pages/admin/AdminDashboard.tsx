@@ -60,9 +60,12 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { toast } = useToast();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   useEffect(() => {
+    // Wait for auth to initialize
+    if (authLoading) return;
+
     if (isAuthenticated && user) {
       const fetchCourses = async () => {
         setIsLoading(true);
@@ -89,8 +92,10 @@ const AdminDashboard = () => {
         }
       };
       fetchInsights();
+    } else if (!authLoading && !isAuthenticated) {
+      setIsLoading(false);
     }
-  }, [isAuthenticated, user, toast]);
+  }, [isAuthenticated, user, authLoading, toast]);
 
   const filteredCourses = courses.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase())

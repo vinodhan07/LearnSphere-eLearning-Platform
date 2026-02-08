@@ -7,6 +7,7 @@ import { Course } from "@/types/course";
 import CourseCard from "@/components/courses/CourseCard";
 import Navbar from "@/components/layout/Navbar";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const categories = ["All", "Development", "Design", "Data Science", "Mobile", "Cloud", "Security"];
 
@@ -16,8 +17,11 @@ const CourseCatalog = () => {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const { toast } = useToast();
+  const { isLoading: authLoading } = useAuth();
 
   useEffect(() => {
+    if (authLoading) return;
+
     const fetchCourses = async () => {
       try {
         const data = await getCourses();
@@ -34,7 +38,7 @@ const CourseCatalog = () => {
     };
 
     fetchCourses();
-  }, [toast]);
+  }, [toast, authLoading]);
 
   // Backend already filters published courses for guests, but valid to be safe
   const published = courses.filter((c) => c.published);

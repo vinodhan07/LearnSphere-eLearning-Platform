@@ -60,7 +60,7 @@ export default function CreateCourseModal({ open, onOpenChange }: CreateCourseMo
                 <DialogHeader>
                     <DialogTitle>Create New Course</DialogTitle>
                     <DialogDescription>
-                        Give your new course a title. You can add more details later.
+                        Give your new course a title. You will be able to add content and quizzes after the course is created.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 py-4">

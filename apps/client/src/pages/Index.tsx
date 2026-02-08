@@ -21,15 +21,16 @@ const stats = [
 const Index = () => {
   const [featuredCourses, setFeaturedCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { hasMinimumRole } = useAuth();
+  const { hasMinimumRole, user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
+    // Wait for auth to initialize before making decisions about what to fetch
+    if (authLoading) return;
+
     const fetchCourses = async () => {
       try {
         const data = await getCourses();
-        // Server already filters published for guests, but we double check to be safe
-        // and take the first 3 for the featured section
         const published = data.filter((c: Course) => c.published).slice(0, 3);
         setFeaturedCourses(published);
       } catch (error) {
@@ -44,8 +45,13 @@ const Index = () => {
       }
     };
 
-    fetchCourses();
-  }, [toast]);
+    // Only fetch courses for guests or learners
+    if (!user || user.role === 'LEARNER') {
+      fetchCourses();
+    } else {
+      setIsLoading(false);
+    }
+  }, [toast, user, authLoading]);
 
   return (
     <div className="min-h-screen bg-background">

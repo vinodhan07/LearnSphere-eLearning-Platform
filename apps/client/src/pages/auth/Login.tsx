@@ -20,17 +20,41 @@ export default function Login() {
 
     const from = (location.state as { from?: string })?.from || '/profile';
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async (e?: React.FormEvent, demoData?: { email: string, password: string }) => {
+        if (e) e.preventDefault();
+        const loginEmail = demoData?.email || email;
+        const loginPassword = demoData?.password || password;
+
         setIsSubmitting(true);
 
         try {
-            await login({ email, password });
+            await login({ email: loginEmail, password: loginPassword });
+
+            // Get user from local storage or wait for next tick?
+            // Actually, login() in AuthContext sets the user state.
+            // But we need the role immediately. 
+            // The login() function in AuthContext (apiLogin) returns { user, token }.
+            // However, useAuth().user might not be updated yet in this component's scope.
+            // Let's modify handleLogin to return the user or use a helper.
+
+            // For now, since login() is async and updates state, we might need a small trick
+            // or better yet, since we know apiLogin returns the user:
+            const response = await (await import('@/lib/api')).login({ email: loginEmail, password: loginPassword });
+
             toast({
                 title: 'Welcome back!',
-                description: 'You have successfully logged in.',
+                description: `Logged in as ${response.user.name}`,
             });
-            navigate(from, { replace: true });
+
+            // Role-based redirection
+            const roleRoutes = {
+                ADMIN: '/admin-dashboard',
+                INSTRUCTOR: '/instructor-dashboard',
+                LEARNER: '/learner-dashboard'
+            };
+
+            const target = roleRoutes[response.user.role] || from;
+            navigate(target, { replace: true });
         } catch (error: any) {
             toast({
                 title: 'Login failed',
@@ -137,22 +161,25 @@ export default function Login() {
                         <div className="grid grid-cols-3 gap-2 text-xs">
                             <button
                                 type="button"
-                                onClick={() => { setEmail('admin.learnsphere@gmail.com'); setPassword('admin123'); }}
+                                onClick={() => handleSubmit(undefined, { email: 'admin.learnsphere@gmail.com', password: 'admin123' })}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors border border-transparent hover:border-orange-200"
+                                disabled={isSubmitting}
                             >
                                 Admin
                             </button>
                             <button
                                 type="button"
-                                onClick={() => { setEmail('instructor.learnsphere@gmail.com'); setPassword('instructor123'); }}
+                                onClick={() => handleSubmit(undefined, { email: 'instructor.learnsphere@gmail.com', password: 'instructor123' })}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors border border-transparent hover:border-orange-200"
+                                disabled={isSubmitting}
                             >
                                 Instructor
                             </button>
                             <button
                                 type="button"
-                                onClick={() => { setEmail('learner.learnsphere@gmail.com'); setPassword('learner123'); }}
+                                onClick={() => handleSubmit(undefined, { email: 'learner.learnsphere@gmail.com', password: 'learner123' })}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors border border-transparent hover:border-orange-200"
+                                disabled={isSubmitting}
                             >
                                 Learner
                             </button>
