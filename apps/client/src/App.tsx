@@ -19,6 +19,7 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import Profile from "./pages/Profile";
+import CheckoutPage from "./pages/CheckoutPage";
 
 import AdminLayout from "./components/layout/AdminLayout";
 import QuizPlayer from "@/components/admin/QuizPlayer";
@@ -37,6 +38,11 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/courses" element={<CourseCatalog />} />
             <Route path="/courses/:id" element={<CourseDetail />} />
+            <Route path="/checkout/:courseId" element={
+              <ProtectedRoute minRole="LEARNER">
+                <CheckoutPage />
+              </ProtectedRoute>
+            } />
 
             {/* Auth routes (guest only) */}
             <Route path="/login" element={

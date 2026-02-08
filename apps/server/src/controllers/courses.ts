@@ -270,3 +270,39 @@ export async function handleBulkAction(req: Request, res: Response): Promise<voi
         res.status(500).json({ error: 'Internal server error' });
     }
 }
+/**
+ * POST /api/courses/:id/purchase
+ */
+export async function purchaseCourse(req: Request, res: Response): Promise<void> {
+    try {
+        console.log('POST /api/courses/:id/purchase - Received', {
+            id: req.params.id,
+            user: req.user?.userId,
+            body: req.body
+        });
+
+        if (!req.user) {
+            res.status(401).json({ error: 'Not authenticated' });
+            return;
+        }
+
+        const { plan, billingDetails, coupon } = req.body;
+        const courseId = req.params.id as string;
+
+        const enrollment = await courseService.purchaseCourse(courseId, req.user.userId, {
+            plan,
+            billingDetails,
+            coupon
+        });
+
+        res.status(200).json({
+            message: 'Purchase completed successfully',
+            enrollment
+        });
+    } catch (error: any) {
+        console.error('Purchase error:', error);
+        res.status(error.message === 'Course not found' ? 404 : 400).json({
+            error: error.message || 'Internal server error'
+        });
+    }
+}

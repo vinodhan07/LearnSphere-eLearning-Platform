@@ -136,6 +136,10 @@ export async function enroll(courseId: string, paymentMethodId?: string): Promis
     return post(`/courses/${courseId}/enroll`, { paymentMethodId });
 }
 
+export async function purchaseCourse(courseId: string, data: any): Promise<any> {
+    return post(`/courses/${courseId}/purchase`, data);
+}
+
 export async function updateLessonProgress(lessonId: string, data: { isCompleted: boolean, timeSpent?: number }): Promise<any> {
     return post(`/quizzes/${lessonId}/progress`, data);
 }

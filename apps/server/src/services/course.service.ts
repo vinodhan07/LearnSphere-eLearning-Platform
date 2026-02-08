@@ -260,6 +260,52 @@ export class CourseService {
         });
     }
 
+    async purchaseCourse(id: string, userId: string, purchaseData: any) {
+        console.log('CourseService.purchaseCourse - Start', { id, userId, purchaseData });
+        const course = await prisma.course.findUnique({ where: { id } });
+
+        if (!course) {
+            console.error('CourseService.purchaseCourse - Course not found', { id });
+            throw new Error('Course not found');
+        }
+
+        if (!course.published) {
+            console.warn('CourseService.purchaseCourse - Course not published', { id, published: course.published });
+            // For testing/internal use, we might want to allow this if the user is authorized
+            // but for now, let's keep the error to match the bug report symptom
+            throw new Error('Course not found');
+        }
+
+        const { plan, billingDetails, coupon } = purchaseData;
+
+        // Calculate price based on plan
+        let paidAmount = course.price || 0;
+        if (plan === 'yearly') {
+            paidAmount = Math.round(paidAmount * 10); // Simulated yearly plan (10 months)
+        }
+
+        // Create or update enrollment
+        const enrollment = await prisma.enrollment.upsert({
+            where: {
+                userId_courseId: { userId, courseId: id }
+            },
+            update: {
+                paidAmount,
+                paidAt: new Date(),
+                progress: 0 // Reset progress if re-purchasing or ensure it starts at 0
+            },
+            create: {
+                userId,
+                courseId: id,
+                paidAmount,
+                paidAt: new Date(),
+                progress: 0
+            }
+        });
+
+        return enrollment;
+    }
+
     async listAdminCourses(user: { userId: string, role: string }) {
         const where: any = {};
 
