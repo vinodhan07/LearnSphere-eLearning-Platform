@@ -26,32 +26,23 @@ export default function Login() {
     const from = (location.state as { from?: string })?.from || '/profile';
 
     const handleRedirect = useCallback((role?: string) => {
-        if (role === 'ADMIN') {
-            navigate('/admin-dashboard', { replace: true });
-        } else if (role === 'INSTRUCTOR') {
-            navigate('/instructor-dashboard', { replace: true });
-        } else if (role === 'LEARNER') {
-            navigate('/learner-dashboard', { replace: true });
-        } else {
-            navigate('/my-courses', { replace: true });
-        }
+        const path =
+            role === 'ADMIN'
+                ? '/admin-dashboard'
+                : role === 'INSTRUCTOR'
+                    ? '/instructor-dashboard'
+                    : role === 'LEARNER'
+                        ? '/learner-dashboard'
+                        : '/my-courses';
+        // Defer navigate so React commits auth state first; otherwise ProtectedRoute still sees user=null and redirects back to login
+        setTimeout(() => navigate(path, { replace: true }), 0);
     }, [navigate]);
 
     const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
         setIsSubmitting(true);
         try {
-            await googleLogin(response.credential);
-            const { data: { session } } = await supabase.auth.getSession();
-            let role: string | undefined;
-            if (session) {
-                const { data: profile } = await supabase
-                    .from('User')
-                    .select('role')
-                    .eq('id', session.user.id)
-                    .maybeSingle();
-                role = profile?.role;
-            }
-            handleRedirect(role);
+            const profile = await googleLogin(response.credential);
+            handleRedirect(profile?.role);
             toast({
                 title: 'Welcome!',
                 description: 'You have successfully signed in with Google.',
@@ -120,14 +111,12 @@ export default function Login() {
     const performLogin = async (loginEmail: string, loginPassword: string) => {
         setIsSubmitting(true);
         try {
-            // Login and get profile directly from context
             const profile = await login({ email: loginEmail, password: loginPassword });
-            handleRedirect(profile?.role);
-
             toast({
                 title: 'Welcome back!',
                 description: 'You have successfully logged in.',
             });
+            handleRedirect(profile?.role);
         } catch (error) {
             toast({
                 title: 'Login failed',

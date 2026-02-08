@@ -31,9 +31,10 @@ const AdminLayout: React.FC = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
 
+    const dashboardPath = user?.role === "ADMIN" ? "/admin-dashboard" : "/instructor-dashboard";
     const navItems = [
-        { label: "Courses", path: "/courses", icon: BookOpen },
-        { label: "Reports", path: "/reports", icon: BarChart3 },
+        { label: "Dashboard", path: dashboardPath, icon: LayoutDashboard },
+        { label: "Reports", path: "/admin/reports", icon: BarChart3 },
         { label: "My Courses", path: "/my-courses", icon: GraduationCap },
     ];
 
@@ -77,10 +78,10 @@ const AdminLayout: React.FC = () => {
                     </div>
 
                     <div className="hidden md:flex items-center gap-4">
-                        <Link to="/admin">
+                        <Link to={dashboardPath}>
                             <Button variant="outline" size="sm" className="gap-2 border-border text-muted-foreground hover:text-foreground">
                                 <LayoutDashboard className="h-4 w-4" />
-                                Instructor Panel
+                                {user?.role === "ADMIN" ? "Admin" : "Instructor"} Dashboard
                             </Button>
                         </Link>
 
@@ -153,7 +154,7 @@ const AdminLayout: React.FC = () => {
                                     </Link>
                                 ))}
                                 <div className="border-t border-border pt-4 mt-2 flex flex-col gap-3">
-                                    <Link to="/" onClick={() => setMobileOpen(false)}>
+                                    <Link to="/learner-dashboard" onClick={() => setMobileOpen(false)}>
                                         <Button variant="outline" className="w-full gap-2">
                                             <Eye className="h-4 w-4" />
                                             Learner View

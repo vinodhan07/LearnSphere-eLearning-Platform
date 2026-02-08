@@ -21,7 +21,7 @@ const stats = [
 const Index = () => {
   const [featuredCourses, setFeaturedCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { hasMinimumRole, isLoading: isAuthLoading } = useAuth();
+  const { user, hasMinimumRole, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -93,12 +93,12 @@ const Index = () => {
                 </Button>
               </Link>
               {hasMinimumRole("INSTRUCTOR") && (
-                <Link to="/admin">
+                <Link to={user?.role === "ADMIN" ? "/admin-dashboard" : "/instructor-dashboard"}>
                   <Button
                     size="lg"
                     className="bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 font-semibold text-base"
                   >
-                    Instructor Portal
+                    {user?.role === "ADMIN" ? "Admin Portal" : "Instructor Portal"}
                   </Button>
                 </Link>
               )}

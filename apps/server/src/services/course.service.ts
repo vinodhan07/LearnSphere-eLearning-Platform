@@ -1,6 +1,7 @@
 import { supabase } from '../utils/supabase.js';
 import { Visibility, AccessRule } from '../../../../shared/constants.js';
 import { listAdminCourses } from '../controllers/courses.js';
+import { prisma } from '../utils/prisma.js';
 
 export class CourseService {
     async createCourse(data: any, adminId: string) {
@@ -38,47 +39,46 @@ export class CourseService {
     async listCourses(isAuthenticated: boolean) {
         console.log('listCourses called, isAuthenticated:', isAuthenticated);
         try {
-            let query = supabase
-                .from('Course')
-                .select(`
-                    *,
-                    responsibleAdmin:User(id, name, avatar)
-                `)
-                .eq('published', true);
+            const where: any = {
+                published: true,
+            };
 
             if (!isAuthenticated) {
-                query = query.eq('visibility', Visibility.EVERYONE);
+                where.visibility = Visibility.EVERYONE;
             }
 
-            const { data: courses, error } = await query.order('createdAt', { ascending: false });
+            const courses = await prisma.course.findMany({
+                where,
+                orderBy: {
+                    createdAt: 'desc',
+                },
+                include: {
+                    responsibleAdmin: {
+                        select: {
+                            id: true,
+                            name: true,
+                            avatar: true,
+                        },
+                    },
+                    _count: {
+                        select: {
+                            enrollments: true,
+                        },
+                    },
+                },
+            });
 
-            if (error) {
-                console.error('Supabase error in listCourses:', error);
-                throw new Error(`Failed to list courses: ${error.message}`);
-            }
+            console.log(`Found ${courses.length} courses`);
 
-            console.log(`Found ${courses?.length || 0} courses`);
-
-            // For each course, get the enrollment count
-            const coursesWithCounts = await Promise.all(
-                (courses || []).map(async (course: any) => {
-                    const { count } = await supabase
-                        .from('Enrollment')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('courseId', course.id);
-
-                    return {
-                        ...course,
-                        tags: course.tags || [],
-                        enrolledCount: count || 0,
-                    };
-                })
-            );
-
-            return coursesWithCounts;
+            return courses.map(course => ({
+                ...course,
+                tags: (course.tags as string[]) || [],
+                enrolledCount: course._count.enrollments,
+                responsibleAdmin: course.responsibleAdmin, // Explicitly include relation
+            }));
         } catch (err) {
-            console.error('Catch block in listCourses:', err);
-            throw err;
+            console.error('Prisma error in listCourses:', err);
+            throw new Error(`Failed to list courses: ${(err as Error).message}`);
         }
     }
 

@@ -21,7 +21,8 @@ const Navbar = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout, hasMinimumRole } = useAuth();
   const { toast } = useToast();
-  const isAdmin = location.pathname.startsWith("/admin");
+  const isAdminArea = location.pathname.startsWith("/admin") || location.pathname.startsWith("/instructor");
+  const isLearnerArea = !isAdminArea;
 
   const learnerLinks = [
     { to: "/courses", label: "Courses", icon: BookOpen },
@@ -30,10 +31,25 @@ const Navbar = () => {
 
   const adminLinks = [
     { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/admin/reporting", label: "Reporting", icon: BarChart3 },
+    { to: "/admin/reports", label: "Reporting", icon: BarChart3 },
   ];
 
-  const links = isAdmin ? adminLinks : learnerLinks;
+  const instructorLinks = [
+    { to: "/instructor-dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { to: "/admin/reports", label: "Reporting", icon: BarChart3 },
+  ];
+
+  const links = !isAuthenticated || !user
+    ? learnerLinks
+    : hasMinimumRole("ADMIN")
+      ? isAdminArea
+        ? adminLinks
+        : learnerLinks
+      : hasMinimumRole("INSTRUCTOR")
+        ? isAdminArea
+          ? instructorLinks
+          : learnerLinks
+        : learnerLinks;
 
   const handleLogout = async () => {
     await logout();
@@ -93,28 +109,19 @@ const Navbar = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          {/* Show Instructor Panel for INSTRUCTOR+ */}
-          {!isAdmin && isAuthenticated && hasMinimumRole("INSTRUCTOR") && (
-            <Link to="/admin">
+          {/* Show Admin/Instructor Panel when on learner area */}
+          {isLearnerArea && isAuthenticated && hasMinimumRole("INSTRUCTOR") && (
+            <Link to={user?.role === "ADMIN" ? "/admin-dashboard" : "/instructor-dashboard"}>
               <Button variant="outline" size="sm" className="gap-2 border-border text-muted-foreground hover:text-foreground">
                 <LayoutDashboard className="h-4 w-4" />
-                Instructor Panel
+                {user?.role === "ADMIN" ? "Admin Panel" : "Instructor Panel"}
               </Button>
             </Link>
           )}
 
-          {/* Admin can also access admin panel */}
-          {!isAdmin && isAuthenticated && hasMinimumRole("ADMIN") && !hasMinimumRole("INSTRUCTOR") && (
-            <Link to="/admin">
-              <Button variant="outline" size="sm" className="gap-2">
-                <LayoutDashboard className="h-4 w-4" />
-                Instructor Panel
-              </Button>
-            </Link>
-          )}
-
-          {isAdmin && (
-            <Link to="/">
+          {/* When on admin/instructor area, show link back to learner view */}
+          {isAdminArea && (
+            <Link to="/learner-dashboard">
               <Button variant="outline" size="sm" className="gap-2">
                 <BookOpen className="h-4 w-4" />
                 Learner View
@@ -222,16 +229,16 @@ const Navbar = () => {
                         </span>
                       </div>
                     </div>
-                    {hasMinimumRole("INSTRUCTOR") && !isAdmin && (
-                      <Link to="/admin" onClick={() => setMobileOpen(false)}>
+                    {hasMinimumRole("INSTRUCTOR") && isLearnerArea && (
+                      <Link to={user?.role === "ADMIN" ? "/admin-dashboard" : "/instructor-dashboard"} onClick={() => setMobileOpen(false)}>
                         <Button variant="outline" className="w-full gap-2">
                           <LayoutDashboard className="h-4 w-4" />
-                          Instructor Panel
+                          {user?.role === "ADMIN" ? "Admin Panel" : "Instructor Panel"}
                         </Button>
                       </Link>
                     )}
-                    {isAdmin && (
-                      <Link to="/" onClick={() => setMobileOpen(false)}>
+                    {isAdminArea && (
+                      <Link to="/learner-dashboard" onClick={() => setMobileOpen(false)}>
                         <Button variant="outline" className="w-full gap-2">
                           <BookOpen className="h-4 w-4" />
                           Learner View

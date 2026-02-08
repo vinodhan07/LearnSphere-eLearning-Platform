@@ -8,7 +8,7 @@ interface AuthContextType {
     isAuthenticated: boolean;
     login: (data: LoginRequest) => Promise<User | null>;
     register: (data: RegisterRequest) => Promise<void>;
-    googleLogin: (credential: string) => Promise<void>;
+    googleLogin: (credential: string) => Promise<User | null>;
     logout: () => Promise<void>;
     hasRole: (requiredRole: Role) => boolean;
     hasAnyRole: (...roles: Role[]) => boolean;
@@ -38,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .maybeSingle();
 
             if (error) {
+                // Ignore AbortError which happens on rapid navigation
                 if (error.message && error.message.includes('AbortError')) return null;
                 console.error('Error fetching user profile:', error.message);
                 return null;
@@ -124,15 +125,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const googleLogin = useCallback(async (credential: string) => {
-        // This assumes the frontend is handling the Google OAuth flow 
-        // and calling this with the result. For Supabase, we typically use 
-        // signInWithOAuth. If using a specific credential (ID Token), we use:
-        const { error } = await supabase.auth.signInWithIdToken({
+        const { data, error } = await supabase.auth.signInWithIdToken({
             provider: 'google',
             token: credential,
         });
 
         if (error) throw error;
+
+        if (data.session) {
+            const profile = await fetchUserProfile(data.session.user.id);
+            setUser(profile);
+            setIsLoading(false);
+            return profile;
+        }
+        return null;
     }, []);
 
     const logout = useCallback(async () => {
