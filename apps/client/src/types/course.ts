@@ -4,6 +4,8 @@ export interface Course {
     description?: string;
     tags: string[];
     image?: string;
+    imageData?: any;
+    hasImage?: boolean;
     published: boolean;
     website?: string;
     visibility: 'EVERYONE' | 'SIGNED_IN';

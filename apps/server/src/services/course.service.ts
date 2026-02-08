@@ -5,13 +5,13 @@ export class CourseService {
     async createCourse(data: any, adminId: string) {
         const { title, description, tags, image, imageData, published, website, visibility, accessRule, price, currency } = data;
 
-        const course = await prisma.course.create({
+        const course = await (prisma.course as any).create({
             data: {
                 title,
                 description,
                 tags: tags ? JSON.stringify(tags) : undefined,
-                image: image || null,
-                imageData: imageData || null, // imageData is handled here
+                image: imageData ? null : (image || null),
+                imageData: imageData || null,
                 published: published || false,
                 website: website || null,
                 visibility: visibility || Visibility.EVERYONE,
@@ -62,15 +62,18 @@ export class CourseService {
                     },
                     enrollments: {
                         select: { id: true }
-                    }
-                },
+                    },
+                    imageData: true
+                } as any,
                 orderBy: { createdAt: 'desc' }
             });
 
             return courses.map(course => ({
-                ...course,
-                tags: course.tags ? JSON.parse(course.tags as string) : [],
-                enrolledCount: course.enrollments.length
+                ...(course as any),
+                tags: (course as any).tags ? JSON.parse((course as any).tags as string) : [],
+                hasImage: !!(course as any).imageData,
+                imageData: undefined,
+                enrolledCount: (course as any).enrollments.length,
             }));
         } catch (err) {
             console.error('Error in listCourses:', err);
@@ -298,13 +301,15 @@ export class CourseService {
         });
 
         return courses.map(course => ({
-            ...course,
-            tags: course.tags ? JSON.parse(course.tags as string) : [],
-            enrolledCount: course.enrollments.length,
-            invitationCount: course.invitations.length,
-            lessonsCount: course.lessons.length,
-            quizzesCount: course.lessons.filter(l => l.type === 'quiz').length,
-            totalDuration: course.lessons.reduce((sum, lesson) => sum + (lesson.duration || 0), 0),
+            ...(course as any),
+            tags: (course as any).tags ? JSON.parse((course as any).tags as string) : [],
+            hasImage: !!(course as any).imageData,
+            imageData: undefined,
+            enrolledCount: (course as any).enrollments.length,
+            invitationCount: (course as any).invitations.length,
+            lessonsCount: (course as any).lessons.length,
+            quizzesCount: (course as any).lessons.filter((l: any) => l.type === 'quiz').length,
+            totalDuration: (course as any).lessons.reduce((sum: number, lesson: any) => sum + (lesson.duration || 0), 0),
         }));
     }
 
@@ -479,7 +484,7 @@ export class CourseService {
     }
 
     async getCourseImage(id: string) {
-        const course = await prisma.course.findUnique({
+        const course = await (prisma.course as any).findUnique({
             where: { id },
             select: { imageData: true }
         });

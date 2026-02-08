@@ -705,7 +705,7 @@ const CourseEditor = () => {
                                         <h4 className="font-heading font-bold text-sm uppercase tracking-widest text-primary/70">Course Cover Image</h4>
                                         <div className="space-y-4">
                                             <div className="aspect-video rounded-xl border border-border bg-muted/30 overflow-hidden flex items-center justify-center relative group">
-                                                {previewUrl || course.image || course.imageData ? (
+                                                {previewUrl || course.image || (course as any).imageData ? (
                                                     <img
                                                         src={previewUrl || (course.image ? course.image : `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/courses/${course.id}/image`)}
                                                         alt="Course Preview"

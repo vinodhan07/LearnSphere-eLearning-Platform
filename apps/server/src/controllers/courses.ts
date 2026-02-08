@@ -290,12 +290,24 @@ export async function getCourseImage(req: Request, res: Response): Promise<void>
     try {
         const imageData = await courseService.getCourseImage(req.params.id as string);
         if (!imageData) {
+            console.warn(`[getCourseImage] No image data for course ${req.params.id}`);
             res.status(404).json({ error: 'Image not found' });
             return;
         }
 
-        // Basic detection or default to jpeg
-        res.set('Content-Type', 'image/jpeg');
+        // Basic buffer-based detection
+        let contentType = 'image/jpeg';
+        const buffer = imageData as Buffer;
+        if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+            contentType = 'image/png';
+        } else if (buffer[0] === 0xff && buffer[1] === 0xd8) {
+            contentType = 'image/jpeg';
+        } else if (buffer.toString('utf8', 0, 4) === 'RIFF' && buffer.toString('utf8', 8, 12) === 'WEBP') {
+            contentType = 'image/webp';
+        }
+
+        res.set('Content-Type', contentType);
+        res.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
         res.send(imageData);
     } catch (error: any) {
         console.error('Get course image error:', error);
