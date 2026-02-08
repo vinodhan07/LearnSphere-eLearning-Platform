@@ -5,18 +5,14 @@ import routes from './routes/index.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware - Allow all localhost origins for development
+// Middleware - Allow all localhost/IP origins for development
 app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
 
-        // Allow all localhost origins for development
-        if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-            return callback(null, true);
-        }
-
-        callback(new Error('Not allowed by CORS'));
+        // Allow all origins for development to support local IP access (192.168.x.x)
+        return callback(null, true);
     },
     credentials: true,
 }));
