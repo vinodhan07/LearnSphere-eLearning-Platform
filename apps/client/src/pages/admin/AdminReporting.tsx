@@ -66,7 +66,7 @@ const AdminReporting = () => {
       courseName: e.course?.title || "Unknown Course",
       participantName: e.user?.name || "Unknown User",
       participantAvatar: e.user?.avatar || `https://ui-avatars.com/api/?name=${e.user?.name || 'U'}`,
-      enrolledDate: e.enrolledAt ? new Date(e.enrolledAt).toLocaleDateString() : "—",
+      enrolledDate: e.startedAt ? new Date(e.startedAt).toLocaleDateString() : "—",
       startDate: e.startedAt ? new Date(e.startedAt).toLocaleDateString() : "—",
       timeSpent: e.timeSpent || "0m",
       completionPercentage: e.progress || 0,
