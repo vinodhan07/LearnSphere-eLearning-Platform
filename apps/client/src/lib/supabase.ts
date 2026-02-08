@@ -11,4 +11,12 @@ if (!supabaseUrl || !supabaseKey) {
     console.error(msg);
 }
 
-export const supabase = createClient(supabaseUrl!, supabaseKey!);
+// Supabase anon keys are JWTs and start with "eyJ" - invalid keys cause auth to hang or fail
+if (import.meta.env.DEV && supabaseKey && !supabaseKey.startsWith('eyJ')) {
+    console.warn(
+        'VITE_SUPABASE_ANON_KEY does not look like a valid Supabase JWT (should start with eyJ). ' +
+            'Get the correct key from Supabase Dashboard → Project Settings → API → anon public.'
+    );
+}
+
+export const supabase = createClient(supabaseUrl || '', supabaseKey || '');

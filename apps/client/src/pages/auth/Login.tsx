@@ -108,10 +108,18 @@ export default function Login() {
         await performLogin(demoEmail, demoPassword);
     };
 
+    const LOGIN_TIMEOUT_MS = 15000;
+
     const performLogin = async (loginEmail: string, loginPassword: string) => {
         setIsSubmitting(true);
         try {
-            const profile = await login({ email: loginEmail, password: loginPassword });
+            const loginWithTimeout = Promise.race([
+                login({ email: loginEmail, password: loginPassword }),
+                new Promise<null>((_, reject) =>
+                    setTimeout(() => reject(new Error('Login timed out. Check your connection and Supabase configuration.')), LOGIN_TIMEOUT_MS)
+                ),
+            ]);
+            const profile = await loginWithTimeout;
             handleRedirect(profile?.role);
             toast({
                 title: 'Welcome back!',
