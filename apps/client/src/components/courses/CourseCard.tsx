@@ -40,7 +40,7 @@ const CourseCard = ({ course, showProgress = false, index = 0 }: CourseCardProps
       return <Button size="sm" onClick={handleStartCourse} className="bg-gradient-hero text-primary-foreground font-semibold">Continue</Button>;
     }
     if (course.accessRule === "PAID" && course.price) {
-      return <Button size="sm" onClick={handleStartCourse} className="bg-gradient-accent text-accent-foreground font-semibold">Buy ₹{course.price}</Button>;
+      return <Button size="sm" onClick={handleStartCourse} className="bg-gradient-accent text-accent-foreground font-semibold">Buy ${course.price}</Button>;
     }
     // Default action (Start Course)
     return (
@@ -66,15 +66,9 @@ const CourseCard = ({ course, showProgress = false, index = 0 }: CourseCardProps
           {/* Image */}
           <div className="relative h-44 overflow-hidden">
             <img
-              src={course.image || (course.hasImage ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/courses/${course.id}/image` : null) || 'https://images.unsplash.com/photo-1497633272928-1003d85fd1ab?auto=format&fit=crop&q=80&w=800'}
+              src={course.image}
               alt={course.title}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                if (!target.src.includes('placeholder')) {
-                  target.src = 'https://images.unsplash.com/photo-1497633272928-1003d85fd1ab?auto=format&fit=crop&q=80&w=800';
-                }
-              }}
             />
             <div className="absolute top-3 left-3 flex gap-1.5">
               {course.tags.slice(0, 2).map((tag) => (
@@ -90,7 +84,7 @@ const CourseCard = ({ course, showProgress = false, index = 0 }: CourseCardProps
             {course.price && (
               <div className="absolute top-3 right-3">
                 <Badge className="bg-gradient-accent text-accent-foreground font-bold text-sm px-2.5 py-0.5">
-                  ₹{course.price}
+                  ${course.price}
                 </Badge>
               </div>
             )}

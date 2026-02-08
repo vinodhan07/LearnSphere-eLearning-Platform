@@ -3,15 +3,14 @@ import { Visibility, AccessRule } from '../../../../shared/constants';
 
 export class CourseService {
     async createCourse(data: any, adminId: string) {
-        const { title, description, tags, image, imageData, published, website, visibility, accessRule, price, currency } = data;
+        const { title, description, tags, image, published, website, visibility, accessRule, price, currency } = data;
 
-        const course = await (prisma.course as any).create({
+        const course = await prisma.course.create({
             data: {
                 title,
                 description,
                 tags: tags ? JSON.stringify(tags) : undefined,
-                image: imageData ? null : (image || null),
-                imageData: imageData || null,
+                image: image || null,
                 published: published || false,
                 website: website || null,
                 visibility: visibility || Visibility.EVERYONE,
@@ -42,38 +41,21 @@ export class CourseService {
 
             const courses = await prisma.course.findMany({
                 where,
-                select: {
-                    id: true,
-                    title: true,
-                    description: true,
-                    tags: true,
-                    image: true,
-                    published: true,
-                    visibility: true,
-                    accessRule: true,
-                    price: true,
-                    currency: true,
-                    responsibleAdminId: true,
-                    createdAt: true,
-                    updatedAt: true,
-                    viewsCount: true,
+                include: {
                     responsibleAdmin: {
                         select: { id: true, name: true, avatar: true }
                     },
                     enrollments: {
                         select: { id: true }
-                    },
-                    imageData: true
-                } as any,
+                    }
+                },
                 orderBy: { createdAt: 'desc' }
             });
 
             return courses.map(course => ({
-                ...(course as any),
-                tags: (course as any).tags ? JSON.parse((course as any).tags as string) : [],
-                hasImage: !!(course as any).imageData,
-                imageData: undefined,
-                enrolledCount: (course as any).enrollments.length,
+                ...course,
+                tags: course.tags ? JSON.parse(course.tags as string) : [],
+                enrolledCount: course.enrollments.length
             }));
         } catch (err) {
             console.error('Error in listCourses:', err);
@@ -301,15 +283,13 @@ export class CourseService {
         });
 
         return courses.map(course => ({
-            ...(course as any),
-            tags: (course as any).tags ? JSON.parse((course as any).tags as string) : [],
-            hasImage: !!(course as any).imageData,
-            imageData: undefined,
-            enrolledCount: (course as any).enrollments.length,
-            invitationCount: (course as any).invitations.length,
-            lessonsCount: (course as any).lessons.length,
-            quizzesCount: (course as any).lessons.filter((l: any) => l.type === 'quiz').length,
-            totalDuration: (course as any).lessons.reduce((sum: number, lesson: any) => sum + (lesson.duration || 0), 0),
+            ...course,
+            tags: course.tags ? JSON.parse(course.tags as string) : [],
+            enrolledCount: course.enrollments.length,
+            invitationCount: course.invitations.length,
+            lessonsCount: course.lessons.length,
+            quizzesCount: course.lessons.filter(l => l.type === 'quiz').length,
+            totalDuration: course.lessons.reduce((sum, lesson) => sum + (lesson.duration || 0), 0),
         }));
     }
 
@@ -443,26 +423,23 @@ export class CourseService {
     }
 
     async listEnrolledCourses(userId: string) {
-        const enrollments = await (prisma.enrollment.findMany({
+        const enrollments = await prisma.enrollment.findMany({
             where: { userId },
             include: {
                 course: {
                     include: {
                         responsibleAdmin: { select: { id: true, name: true, avatar: true } },
-                        lessons: { select: { id: true } },
-                        imageData: true
-                    } as any
+                        lessons: { select: { id: true } }
+                    }
                 }
             }
-        }) as any);
+        });
 
-        return enrollments.map((e: any) => ({
-            ...(e.course as any),
+        return enrollments.map(e => ({
+            ...e.course,
             tags: e.course.tags ? JSON.parse(e.course.tags as string) : [],
             lessonsCount: e.course.lessons.length,
             progress: e.progress,
-            hasImage: !!(e.course as any).imageData,
-            imageData: undefined
         }));
     }
 
@@ -484,19 +461,6 @@ export class CourseService {
             },
             orderBy: { startedAt: 'desc' }
         });
-    }
-
-    async getCourseImage(id: string) {
-        const course = await (prisma.course as any).findUnique({
-            where: { id },
-            select: { imageData: true }
-        });
-
-        if (!course || !course.imageData) {
-            return null;
-        }
-
-        return course.imageData;
     }
 }
 

@@ -44,13 +44,7 @@ export async function createCourse(req: Request, res: Response): Promise<void> {
             res.status(400).json({ error: 'Validation failed', details: validation.error.flatten().fieldErrors });
             return;
         }
-
-        const courseData = {
-            ...validation.data,
-            imageData: req.file ? req.file.buffer : null
-        };
-
-        const course = await courseService.createCourse(courseData, req.user.userId);
+        const course = await courseService.createCourse(validation.data, req.user.userId);
         res.status(201).json(course);
     } catch (error: any) {
         console.error('Create course error:', error);
@@ -99,13 +93,7 @@ export async function updateCourse(req: Request, res: Response): Promise<void> {
             res.status(400).json({ error: 'Validation failed', details: validation.error.flatten().fieldErrors });
             return;
         }
-
-        const courseData = {
-            ...validation.data,
-            imageData: req.file ? req.file.buffer : undefined
-        };
-
-        const course = await courseService.updateCourse(req.params.id as string, courseData, { userId: req.user.userId, role: req.user.role });
+        const course = await courseService.updateCourse(req.params.id as string, validation.data, { userId: req.user.userId, role: req.user.role });
         res.json(course);
     } catch (error: any) {
         console.error('Update course error:', error);
@@ -279,38 +267,6 @@ export async function handleBulkAction(req: Request, res: Response): Promise<voi
         }
     } catch (error) {
         console.error('Bulk action error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-}
-
-/**
- * GET /api/courses/:id/image
- */
-export async function getCourseImage(req: Request, res: Response): Promise<void> {
-    try {
-        const imageData = await courseService.getCourseImage(req.params.id as string);
-        if (!imageData) {
-            console.warn(`[getCourseImage] No image data for course ${req.params.id}`);
-            res.status(404).json({ error: 'Image not found' });
-            return;
-        }
-
-        // Basic buffer-based detection
-        let contentType = 'image/jpeg';
-        const buffer = imageData as Buffer;
-        if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
-            contentType = 'image/png';
-        } else if (buffer[0] === 0xff && buffer[1] === 0xd8) {
-            contentType = 'image/jpeg';
-        } else if (buffer.toString('utf8', 0, 4) === 'RIFF' && buffer.toString('utf8', 8, 12) === 'WEBP') {
-            contentType = 'image/webp';
-        }
-
-        res.set('Content-Type', contentType);
-        res.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
-        res.send(imageData);
-    } catch (error: any) {
-        console.error('Get course image error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 }

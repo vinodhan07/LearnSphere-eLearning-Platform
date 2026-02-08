@@ -107,17 +107,21 @@ const AttendeeModal = ({ isOpen, onClose, courseId }: AttendeeModalProps) => {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const result: any = await api.get(`/courses/${courseId}/attendees`);
+            // 1. Fetch Enrollments with User profile join
+            const { data: enrollData } = await supabase
+                .from('Enrollment')
+                .select('*, user:User(*)')
+                .eq('courseId', courseId);
 
-            if (result.enrollments) {
+            if (enrollData) {
                 setData(prev => ({
                     ...prev,
-                    enrollments: result.enrollments.map((e: any) => ({
+                    enrollments: enrollData.map((e: any) => ({
                         id: e.id,
                         progress: e.progress || 0,
                         completed: e.completed || false,
-                        lastAccessed: e.lastAccessed || e.updatedAt,
-                        performance: e.performance || 0,
+                        lastAccessed: e.lastAccessedAt || e.updatedAt,
+                        performance: e.averageQuizScore || 0,
                         startedAt: e.createdAt,
                         user: {
                             id: e.userId,
@@ -129,10 +133,16 @@ const AttendeeModal = ({ isOpen, onClose, courseId }: AttendeeModalProps) => {
                 }));
             }
 
-            if (result.invitations) {
+            // 2. Fetch Invitations
+            const { data: inviteData } = await supabase
+                .from('CourseInvitation')
+                .select('*')
+                .eq('courseId', courseId);
+
+            if (inviteData) {
                 setData(prev => ({
                     ...prev,
-                    invitations: result.invitations.map((i: any) => ({
+                    invitations: inviteData.map((i: any) => ({
                         id: i.id,
                         user: { email: i.email, name: i.email.split('@')[0] },
                         status: i.status

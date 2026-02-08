@@ -56,9 +56,9 @@ const ProfilePanel = () => {
           alt={user.name}
           className="h-16 w-16 rounded-full object-cover ring-2 ring-accent/30"
         />
-        <div className="min-w-0 truncate">
-          <h3 className="font-heading font-bold text-lg text-card-foreground truncate">{user.name}</h3>
-          <p className="text-sm text-muted-foreground truncate" title={user.email}>{user.email}</p>
+        <div>
+          <h3 className="font-heading font-bold text-lg text-card-foreground">{user.name}</h3>
+          <p className="text-sm text-muted-foreground">{user.email}</p>
         </div>
       </div>
 

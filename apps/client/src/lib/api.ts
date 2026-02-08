@@ -26,13 +26,9 @@ async function apiRequest<T>(
     const accessToken = getAccessToken();
 
     const headers: HeadersInit = {
+        'Content-Type': 'application/json',
         ...options.headers,
     };
-
-    // Only set Content-Type to JSON if body is not FormData
-    if (!(options.body instanceof FormData)) {
-        (headers as Record<string, string>)['Content-Type'] = 'application/json';
-    }
 
     if (accessToken) {
         (headers as Record<string, string>)['Authorization'] = `Bearer ${accessToken}`;

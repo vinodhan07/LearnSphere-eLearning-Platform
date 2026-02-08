@@ -171,17 +171,7 @@ const CourseDetail = () => {
           </div>
 
           <div className="bg-card rounded-xl border border-border p-6 shadow-card space-y-5 h-fit">
-            <img
-              src={course.image || (course.hasImage ? `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/courses/${course.id}/image` : null) || 'https://images.unsplash.com/photo-1497633272928-1003d85fd1ab?auto=format&fit=crop&q=80&w=800'}
-              alt={course.title}
-              className="w-full h-40 rounded-lg object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                if (!target.src.includes('placeholder')) {
-                  target.src = 'https://images.unsplash.com/photo-1497633272928-1003d85fd1ab?auto=format&fit=crop&q=80&w=800';
-                }
-              }}
-            />
+            <img src={course.image} alt={course.title} className="w-full h-40 rounded-lg object-cover" />
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Progress</span>

@@ -94,8 +94,6 @@ const CourseEditor = () => {
     const [lessons, setLessons] = useState<Lesson[]>([]);
     const [admins, setAdmins] = useState<Admin[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [imageFile, setImageFile] = useState<File | null>(null);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState("content");
 
@@ -226,23 +224,7 @@ const CourseEditor = () => {
         try {
             setIsSaving(true);
             const dataToUpdate = prepareCourseForUpdate(course);
-
-            const formData = new FormData();
-            Object.entries(dataToUpdate).forEach(([key, value]) => {
-                if (value !== null && value !== undefined) {
-                    if (Array.isArray(value)) {
-                        formData.append(key, JSON.stringify(value));
-                    } else {
-                        formData.append(key, String(value));
-                    }
-                }
-            });
-
-            if (imageFile) {
-                formData.append('imageFile', imageFile);
-            }
-
-            await api.put(`/courses/${id}`, formData);
+            await api.put(`/courses/${id}`, dataToUpdate);
             toast({ title: "Changes Saved", description: "Your course updates have been saved successfully.", className: "bg-emerald-500 text-white border-emerald-600" });
         } catch (error: any) {
             console.error("Save failed:", error);
@@ -698,45 +680,6 @@ const CourseEditor = () => {
                                                     <option key={admin.id} value={admin.id}>{admin.name} ({admin.email})</option>
                                                 ))}
                                             </select>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-card rounded-2xl border border-border p-6 shadow-sm space-y-4">
-                                        <h4 className="font-heading font-bold text-sm uppercase tracking-widest text-primary/70">Course Cover Image</h4>
-                                        <div className="space-y-4">
-                                            <div className="aspect-video rounded-xl border border-border bg-muted/30 overflow-hidden flex items-center justify-center relative group">
-                                                {previewUrl || course.image || (course as any).imageData ? (
-                                                    <img
-                                                        src={previewUrl || (course.image ? course.image : `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/courses/${course.id}/image`)}
-                                                        alt="Course Preview"
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <div className="text-center p-6">
-                                                        <ImageIcon className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
-                                                        <p className="text-xs text-muted-foreground italic">No cover image uploaded.</p>
-                                                    </div>
-                                                )}
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                    <label htmlFor="course-image-upload" className="cursor-pointer bg-white/10 hover:bg-white/20 backdrop-blur-md text-white text-xs font-bold py-2 px-4 rounded-full border border-white/20 transition-all">
-                                                        Change Image
-                                                    </label>
-                                                    <input
-                                                        id="course-image-upload"
-                                                        type="file"
-                                                        className="hidden"
-                                                        accept="image/*"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) {
-                                                                setImageFile(file);
-                                                                setPreviewUrl(URL.createObjectURL(file));
-                                                            }
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <p className="text-[10px] text-muted-foreground italic text-center">Recommended: 16:9 aspect ratio. Limit 5MB.</p>
                                         </div>
                                     </div>
                                 </div>
