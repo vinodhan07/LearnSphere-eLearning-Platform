@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,39 +23,6 @@ export default function Login() {
     const { toast } = useToast();
 
     const from = (location.state as { from?: string })?.from || '/profile';
-
-    const handleRedirect = useCallback((role?: string) => {
-        const path =
-            role === 'ADMIN'
-                ? '/admin-dashboard'
-                : role === 'INSTRUCTOR'
-                    ? '/instructor-dashboard'
-                    : role === 'LEARNER'
-                        ? '/learner-dashboard'
-                        : '/my-courses';
-        // Defer navigate so React commits auth state first; otherwise ProtectedRoute still sees user=null and redirects back to login
-        setTimeout(() => navigate(path, { replace: true }), 0);
-    }, [navigate]);
-
-    const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
-        setIsSubmitting(true);
-        try {
-            const profile = await googleLogin(response.credential);
-            handleRedirect(profile?.role);
-            toast({
-                title: 'Welcome!',
-                description: 'You have successfully signed in with Google.',
-            });
-        } catch (error) {
-            toast({
-                title: 'Google sign-in failed',
-                description: error instanceof Error ? error.message : 'Could not sign in with Google',
-                variant: 'destructive',
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
-    }, [googleLogin, handleRedirect, toast]);
 
     // Load Google Identity Services script
     useEffect(() => {
@@ -95,36 +61,39 @@ export default function Login() {
                 text: 'continue_with',
             });
         }
-    }, [googleLoaded, handleGoogleResponse]);
+    }, [googleLoaded]);
+
+    const handleGoogleResponse = async (response: { credential: string }) => {
+        setIsSubmitting(true);
+        try {
+            await googleLogin(response.credential);
+            toast({
+                title: 'Welcome!',
+                description: 'You have successfully signed in with Google.',
+            });
+            navigate(from, { replace: true });
+        } catch (error) {
+            toast({
+                title: 'Google sign-in failed',
+                description: error instanceof Error ? error.message : 'Could not sign in with Google',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        await performLogin(email, password);
-    };
-
-    const handleDemoLogin = async (demoEmail: string, demoPassword: string) => {
-        setEmail(demoEmail);
-        setPassword(demoPassword);
-        await performLogin(demoEmail, demoPassword);
-    };
-
-    const LOGIN_TIMEOUT_MS = 15000;
-
-    const performLogin = async (loginEmail: string, loginPassword: string) => {
         setIsSubmitting(true);
+
         try {
-            const loginWithTimeout = Promise.race([
-                login({ email: loginEmail, password: loginPassword }),
-                new Promise<null>((_, reject) =>
-                    setTimeout(() => reject(new Error('Login timed out. Check your connection and Supabase configuration.')), LOGIN_TIMEOUT_MS)
-                ),
-            ]);
-            const profile = await loginWithTimeout;
-            handleRedirect(profile?.role);
+            await login({ email, password });
             toast({
                 title: 'Welcome back!',
                 description: 'You have successfully logged in.',
             });
+            navigate(from, { replace: true });
         } catch (error) {
             toast({
                 title: 'Login failed',
@@ -242,25 +211,25 @@ export default function Login() {
 
                     {/* Demo credentials */}
                     <div className="mt-8 pt-6 border-t border-border">
-                        <p className="text-xs text-muted-foreground text-center mb-3">Demo accounts (Click to auto-login):</p>
+                        <p className="text-xs text-muted-foreground text-center mb-3">Demo accounts:</p>
                         <div className="grid grid-cols-3 gap-2 text-xs">
                             <button
                                 type="button"
-                                onClick={() => handleDemoLogin('admin.learnsphere@gmail.com', 'admin123')}
+                                onClick={() => { setEmail('admin.learnsphere@gmail.com'); setPassword('admin123'); }}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
                             >
                                 Admin
                             </button>
                             <button
                                 type="button"
-                                onClick={() => handleDemoLogin('instructor.learnsphere@gmail.com', 'instructor123')}
+                                onClick={() => { setEmail('instructor.learnsphere@gmail.com'); setPassword('instructor123'); }}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
                             >
                                 Instructor
                             </button>
                             <button
                                 type="button"
-                                onClick={() => handleDemoLogin('learner.learnsphere@gmail.com', 'learner123')}
+                                onClick={() => { setEmail('learner.learnsphere@gmail.com'); setPassword('learner123'); }}
                                 className="px-2 py-1.5 rounded bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
                             >
                                 Learner

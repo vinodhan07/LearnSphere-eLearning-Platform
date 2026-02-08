@@ -21,20 +21,11 @@ const stats = [
 const Index = () => {
   const [featuredCourses, setFeaturedCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { user, hasMinimumRole, isLoading: isAuthLoading } = useAuth();
+  const { hasMinimumRole } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
     const fetchCourses = async () => {
-      // Wait for auth to initialize
-      if (isAuthLoading) return;
-
-      // Only fetch if guest or learner
-      if (hasMinimumRole("INSTRUCTOR")) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
         const data = await getCourses();
         // Server already filters published for guests, but we double check to be safe
@@ -54,7 +45,7 @@ const Index = () => {
     };
 
     fetchCourses();
-  }, [hasMinimumRole, isAuthLoading, toast]);
+  }, [toast]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -93,12 +84,12 @@ const Index = () => {
                 </Button>
               </Link>
               {hasMinimumRole("INSTRUCTOR") && (
-                <Link to={user?.role === "ADMIN" ? "/admin-dashboard" : "/instructor-dashboard"}>
+                <Link to="/admin">
                   <Button
                     size="lg"
                     className="bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 font-semibold text-base"
                   >
-                    {user?.role === "ADMIN" ? "Admin Portal" : "Instructor Portal"}
+                    Instructor Portal
                   </Button>
                 </Link>
               )}

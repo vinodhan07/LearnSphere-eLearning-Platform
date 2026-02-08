@@ -6,9 +6,9 @@ interface AuthContextType {
     user: User | null;
     isLoading: boolean;
     isAuthenticated: boolean;
-    login: (data: LoginRequest) => Promise<User | null>;
+    login: (data: LoginRequest) => Promise<void>;
     register: (data: RegisterRequest) => Promise<void>;
-    googleLogin: (credential: string) => Promise<User | null>;
+    googleLogin: (credential: string) => Promise<void>;
     logout: () => Promise<void>;
     hasRole: (requiredRole: Role) => boolean;
     hasAnyRole: (...roles: Role[]) => boolean;
@@ -28,82 +28,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // If profile is null after login, check Supabase table name (User vs user) and RLS (e.g. auth.uid() = id).
     const fetchUserProfile = async (uid: string) => {
-        try {
-            const { data, error } = await supabase
-                .from('User')
-                .select('*')
-                .eq('id', uid)
-                .maybeSingle();
+        const { data, error } = await supabase
+            .from('User')
+            .select('*')
+            .eq('id', uid)
+            .maybeSingle();
 
-            if (error) {
-                // Ignore AbortError which happens on rapid navigation
-                if (error.message && error.message.includes('AbortError')) return null;
-                console.error('Error fetching user profile:', error.message);
-                return null;
-            }
-            return data as User | null;
-        } catch (err) {
+        if (error) {
+            console.error('Error fetching user profile:', error.message);
             return null;
         }
+        return data as User | null;
     };
 
     // Check for existing session on mount
     useEffect(() => {
-        let mounted = true;
-
-        const initSession = async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session && mounted) {
-                    const profile = await fetchUserProfile(session.user.id);
-                    if (mounted) setUser(profile);
-                } else if (mounted) {
-                    setUser(null);
-                }
-            } catch (error) {
-                console.error('Error checking session:', error);
-                if (mounted) setUser(null);
-            } finally {
-                if (mounted) setIsLoading(false);
+        // Get initial session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                fetchUserProfile(session.user.id).then(profile => {
+                    setUser(profile);
+                    setIsLoading(false);
+                });
+            } else {
+                setUser(null);
+                setIsLoading(false);
             }
-        };
+        });
 
-        initSession();
-
+        // Listen for changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             if (session) {
                 const profile = await fetchUserProfile(session.user.id);
-                if (mounted) setUser(profile);
+                setUser(profile);
             } else {
-                if (mounted) setUser(null);
+                setUser(null);
             }
-            if (mounted) setIsLoading(false);
+            setIsLoading(false);
         });
 
-        return () => {
-            mounted = false;
-            subscription.unsubscribe();
-        };
+        return () => subscription.unsubscribe();
     }, []);
 
     const login = useCallback(async (data: LoginRequest) => {
-        const { data: authData, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
             email: data.email,
             password: data.password,
         });
 
         if (error) throw error;
-
-        // Optimistically fetch profile to ensure state is ready before promise resolves
-        if (authData.session) {
-            const profile = await fetchUserProfile(authData.session.user.id);
-            setUser(profile);
-            setIsLoading(false);
-            return profile;
-        }
-        return null;
+        // User state will be updated by onAuthStateChange listener
     }, []);
 
     const register = useCallback(async (data: RegisterRequest) => {
@@ -125,20 +100,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const googleLogin = useCallback(async (credential: string) => {
-        const { data, error } = await supabase.auth.signInWithIdToken({
+        // This assumes the frontend is handling the Google OAuth flow 
+        // and calling this with the result. For Supabase, we typically use 
+        // signInWithOAuth. If using a specific credential (ID Token), we use:
+        const { error } = await supabase.auth.signInWithIdToken({
             provider: 'google',
             token: credential,
         });
 
         if (error) throw error;
-
-        if (data.session) {
-            const profile = await fetchUserProfile(data.session.user.id);
-            setUser(profile);
-            setIsLoading(false);
-            return profile;
-        }
-        return null;
     }, []);
 
     const logout = useCallback(async () => {

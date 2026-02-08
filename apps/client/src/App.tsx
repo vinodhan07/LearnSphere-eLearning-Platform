@@ -74,25 +74,11 @@ const App = () => (
               </ProtectedRoute>
             }>
               <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/admin/dashboard" element={<AdminDashboard />} />
-              <Route path="/admin-dashboard" element={<AdminDashboard />} />
-              <Route path="/instructor/dashboard" element={<AdminDashboard />} />
-              <Route path="/instructor-dashboard" element={<AdminDashboard />} />
               <Route path="/admin/course/:id" element={<CourseEditor />} />
               <Route path="/admin/quiz/:courseId" element={<QuizPlayer />} />
               <Route path="/admin/reports" element={<AdminReporting />} />
+              {/* Legacy/Redirects if needed, but keeping clean for now */}
             </Route>
-
-            <Route path="/learner/dashboard" element={
-              <ProtectedRoute minRole="LEARNER">
-                <MyCourses />
-              </ProtectedRoute>
-            } />
-            <Route path="/learner-dashboard" element={
-              <ProtectedRoute minRole="LEARNER">
-                <MyCourses />
-              </ProtectedRoute>
-            } />
 
             {/* 404 */}
             <Route path="*" element={<NotFound />} />
