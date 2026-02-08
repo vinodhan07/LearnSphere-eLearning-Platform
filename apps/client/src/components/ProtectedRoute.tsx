@@ -1,6 +1,10 @@
+import { useState, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Role } from '@/types/auth';
+
+/** In DEV, skip loading spinner after this ms to avoid infinite spinner if Supabase never responds */
+const DEV_LOADING_TIMEOUT_MS = 2000;
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -23,9 +27,23 @@ export function ProtectedRoute({
 }: ProtectedRouteProps) {
     const { isAuthenticated, isLoading, hasMinimumRole, hasAnyRole } = useAuth();
     const location = useLocation();
+    const [devTimeoutReached, setDevTimeoutReached] = useState(false);
+
+    // In DEV, skip loading after timeout so we don't get infinite spinner if Supabase never responds
+    useEffect(() => {
+        if (!isLoading) {
+            setDevTimeoutReached(false);
+            return;
+        }
+        if (!import.meta.env.DEV) return;
+        const t = setTimeout(() => setDevTimeoutReached(true), DEV_LOADING_TIMEOUT_MS);
+        return () => clearTimeout(t);
+    }, [isLoading]);
+
+    const showSpinner = isLoading && !(import.meta.env.DEV && devTimeoutReached);
 
     // Show nothing while checking auth status
-    if (isLoading) {
+    if (showSpinner) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -63,8 +81,21 @@ export function GuestRoute({
 }) {
     const { isAuthenticated, isLoading } = useAuth();
     const location = useLocation();
+    const [devTimeoutReached, setDevTimeoutReached] = useState(false);
 
-    if (isLoading) {
+    useEffect(() => {
+        if (!isLoading) {
+            setDevTimeoutReached(false);
+            return;
+        }
+        if (!import.meta.env.DEV) return;
+        const t = setTimeout(() => setDevTimeoutReached(true), DEV_LOADING_TIMEOUT_MS);
+        return () => clearTimeout(t);
+    }, [isLoading]);
+
+    const showSpinner = isLoading && !(import.meta.env.DEV && devTimeoutReached);
+
+    if (showSpinner) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
