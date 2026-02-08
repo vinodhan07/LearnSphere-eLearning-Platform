@@ -43,4 +43,3 @@ app.listen(PORT, () => {
 });
 
 export default app;
-// db migration complete
